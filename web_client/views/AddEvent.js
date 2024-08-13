@@ -37,15 +37,14 @@ var AddEventView = View.extend({
             const latitude  = position.coords.latitude;
             const longitude = position.coords.longitude;
             locationField.value = latitude + ',' + longitude;
-            locationField.href = 'https://www.openstreetmap.org/#map=18/' + latitude + '/' + longitude;
         }
 
         function error() {
-            locationField.value = 'Unable to retrieve your location';
+            locationField.value = 'Unknown';
         }
 
         if (!navigator.geolocation) {
-            locationField.value = 'Geolocation is not supported by your browser';
+            locationField.value = 'Unknown';
         } else {
             locationField.value = 'Locating…';
             navigator.geolocation.getCurrentPosition(success, error);
