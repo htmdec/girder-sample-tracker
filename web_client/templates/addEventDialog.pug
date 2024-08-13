@@ -1,0 +1,19 @@
+.modal-dialog
+  .modal-content
+    form#g-event-form.modal-form(role="form")
+      .modal-header
+        button.close(type="button", data-dismiss="modal", aria-hidden="true") &times;
+        h4.modal-title Add an event for #{sample.get("name")}
+      .modal-body
+        .form-group
+          label(for="eventType") Type
+          input#eventType.form-control(type="text", name="eventType")
+        .form-group
+          label(for="comment") Comment
+          input#comment.form-control(type="text", name="comment")
+        .form-group
+          label(for="location") Location
+          input#location.form-control(type="text", name="location")
+      .modal-footer
+        a.btn.btn-default(data-dismiss="modal") Close
+        button#g-event-btn.btn.btn-primary(type="submit") Save

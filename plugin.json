@@ -1,0 +1,9 @@
+{
+    "name": "Sample Tracker",
+    "description": "Track history of physical samples.",
+    "version": "0.1.0",
+    "npm": {
+        "dependencies": {
+        }
+    }
+}

@@ -1,0 +1,33 @@
+.g-sample-header
+  .g-sample-actions
+    button.g-new-event.btn.btn-sm.btn-success(title="Add a new event")
+      i.icon-plus
+    button.g-access-sample.g-edit-access.btn.btn-sm.btn-warning(title="Access control")
+      i.icon-lock
+    button.g-delete-sample.btn.btn-sm.btn-danger(title="Delete sample")
+      i.icon-trash
+  
+  .g-sample-title.g-body-title Sample #{sample.get("name")}
+  if sample.get('description')
+    .g-sample-description!= sample.get('description')
+  .g-sample-scan-qr
+    canvas#g-sample-qr
+  .g-clear-right
+
+.g-events-list-table
+  table.g-events-widget
+    thead
+      tr
+        th Type
+        th Created
+        th Creator
+        th Comment
+        th Location
+    tbody
+      each event in events
+        tr
+          td= event.eventType
+          td= formatDate(event.created, DATE_MINUTE)
+          td= event.creatorName
+          td= event.comment
+          td= event.location

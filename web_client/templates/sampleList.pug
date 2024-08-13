@@ -1,0 +1,31 @@
+.g-samples-header
+
+  .g-samples-actions
+    button.g-new-sample.btn.btn-sm.btn-success(title="Add a new sample")
+      i.icon-plus
+
+  .g-samples-title.g-body-title Samples
+
+  p All the samples you have access to are listed here. You can click on the individual sample to view the details and get a QR code for the sample.
+
+  .g-clear-right
+
+.g-samples-list-table
+  table.g-samples-widget
+    thead
+      tr
+        th Name
+        th Created
+        th Updated
+    tbody
+      each sample in samples
+        tr(g-sample-id=sample.id)
+          td
+            a.g-view-sample(cid=sample.cid)= sample.get("name")
+          td= formatDate(sample.get("created"), DATE_DAY)
+          td= formatDate(sample.get("updated"), DATE_DAY)
+
+  .g-samples-pagination
+
+  if samples.length === 0
+    .g-no-samples-record No samples found

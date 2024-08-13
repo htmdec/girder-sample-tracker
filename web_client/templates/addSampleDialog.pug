@@ -1,0 +1,16 @@
+.modal-dialog
+  .modal-content
+    form#g-sample-form.modal-form(role="form")
+      .modal-header
+        button.close(type="button", data-dismiss="modal", aria-hidden="true") &times;
+        h4.modal-title Create a new sample for tracking
+      .modal-body
+        .form-group
+          label(for="name") Name
+          input#name.form-control(type="text", name="name")
+        .form-group
+          label(for="comment") Description
+          input#description.form-control(type="text", name="description")
+      .modal-footer
+        a.btn.btn-default(data-dismiss="modal") Close
+        button#g-sample-btn.btn.btn-primary(type="submit") Save
