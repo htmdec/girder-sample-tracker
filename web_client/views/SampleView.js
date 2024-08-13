@@ -37,8 +37,7 @@ var SampleView = View.extend({
             formatDate: formatDate,
             DATE_MINUTE: DATE_MINUTE
         }));
-        const addEventUrl = `${window.location.origin}/#sample/${this.model.id}?dialog=addEvent`;
-        console.log(addEventUrl);
+        const addEventUrl = `${window.location.origin}/#sample/${this.model.id}/add`;
         QRCode.toCanvas(this.$('#g-sample-qr')[0], addEventUrl, { errorCorrectionLevel: 'H' });
         if (this.addEvent) {
             this.addEventDialog();
