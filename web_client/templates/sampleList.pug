@@ -1,8 +1,9 @@
 .g-samples-header
 
   .g-samples-actions
-    button.g-new-sample.btn.btn-sm.btn-success(title="Add a new sample")
-      i.icon-plus
+    if (user)
+      button.g-new-sample.btn.btn-sm.btn-success(title="Add a new sample")
+        i.icon-plus
 
   .g-samples-title.g-body-title Samples
 

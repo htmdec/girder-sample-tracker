@@ -3,6 +3,7 @@ import router from 'girder/router';
 import View from 'girder/views/View';
 import AccessWidget from 'girder/views/widgets/AccessWidget';
 import { formatDate, DATE_MINUTE } from 'girder/misc';
+import { AccessType } from 'girder/constants';
 
 import SampleTemplate from '../templates/sampleView.pug';
 import '../stylesheets/sampleView.styl';
@@ -34,6 +35,8 @@ var SampleView = View.extend({
         this.$el.html(SampleTemplate({
             sample: this.model,
             events: this.model.get('events'),
+            AccessType: AccessType,
+            level: this.model.getAccessLevel(),
             formatDate: formatDate,
             DATE_MINUTE: DATE_MINUTE
         }));

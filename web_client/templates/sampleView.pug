@@ -1,12 +1,17 @@
 .g-sample-header
   .g-sample-actions
-    button.g-new-event.btn.btn-sm.btn-success(title="Add a new event")
-      i.icon-plus
-    button.g-access-sample.g-edit-access.btn.btn-sm.btn-warning(title="Access control")
-      i.icon-lock
-    button.g-delete-sample.btn.btn-sm.btn-danger(title="Delete sample")
-      i.icon-trash
-  
+    button.g-back.btn.btn-sm.btn-primary(onclick="window.history.back()", title="Back to samples")
+      i.icon-left
+    if (level >= AccessType.WRITE)
+      button.g-new-event.btn.btn-sm.btn-success(title="Add a new event")
+        i.icon-plus
+    if (level >= AccessType.ADMIN)
+      button.g-access-sample.g-edit-access.btn.btn-sm.btn-warning(title="Access control")
+        i.icon-lock
+    if (level >= AccessType.ADMIN)
+      button.g-delete-sample.btn.btn-sm.btn-danger(title="Delete sample")
+        i.icon-trash
+
   .g-sample-title.g-body-title Sample #{sample.get("name")}
   if sample.get('description')
     .g-sample-description!= sample.get('description')
@@ -30,4 +35,8 @@
           td= formatDate(event.created, DATE_MINUTE)
           td= event.creatorName
           td= event.comment
-          td= event.location
+          if (event.location.includes(','))
+            td
+              a(href=`https://www.openstreetmap.org/#map=18/${event.location.replace(',','/')}`)= event.location
+          else
+            td= event.location

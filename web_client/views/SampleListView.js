@@ -1,6 +1,7 @@
 import router from 'girder/router';
 import View from 'girder/views/View';
 import PaginateWidget from 'girder/views/widgets/PaginateWidget';
+import { getCurrentUser } from 'girder/auth';
 import { formatDate, DATE_DAY } from 'girder/misc';
 
 import SampleCollection from '../collections/SampleCollection';
@@ -41,7 +42,8 @@ var SampleListView = View.extend({
         this.$el.html(SampleListTemplate({
             samples: this.collection.toArray(),
             formatDate: formatDate,
-            DATE_DAY: DATE_DAY
+            DATE_DAY: DATE_DAY,
+            user: getCurrentUser()
         }));
         if (this.collection.isEmpty()) {
             this.$('.g-main-content,.g-samples-pagination').hide();

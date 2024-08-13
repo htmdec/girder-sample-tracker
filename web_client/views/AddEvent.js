@@ -37,6 +37,7 @@ var AddEventView = View.extend({
             const latitude  = position.coords.latitude;
             const longitude = position.coords.longitude;
             locationField.value = latitude + ',' + longitude;
+            locationField.href = 'https://www.openstreetmap.org/#map=18/' + latitude + '/' + longitude;
         }
 
         function error() {
