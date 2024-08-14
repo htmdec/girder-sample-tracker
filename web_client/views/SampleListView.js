@@ -6,7 +6,7 @@ import { formatDate, DATE_DAY } from 'girder/misc';
 
 import SampleCollection from '../collections/SampleCollection';
 import SampleListTemplate from '../templates/sampleList.pug';
-import AddSampleView from './AddSample';
+import AddSampleDialog from './AddSampleDialog';
 
 import '../stylesheets/sampleList.styl';
 
@@ -14,7 +14,7 @@ var SampleListView = View.extend({
     events: {
         'click .g-new-sample': function (event) {
             event.preventDefault();
-            new AddSampleView({
+            new AddSampleDialog({
                 el: $('#g-dialog-container'),
                 parentView: this
             }).render();

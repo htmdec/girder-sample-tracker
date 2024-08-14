@@ -12,7 +12,7 @@ import 'girder/utilities/jquery/girderModal';
 import 'bootstrap-tagsinput';
 import 'bootstrap-tagsinput/dist/bootstrap-tagsinput.css';
 
-var AddSampleView = View.extend({
+var AddSampleDialog = View.extend({
     events: {
         'submit #g-sample-form': function (e) {
             e.preventDefault();
@@ -50,7 +50,7 @@ var AddSampleView = View.extend({
             });
         handleOpen('addSample', {replace: true});
         this.$('input#eventTypes').tagsinput();
-        if (this.sample !== null) {
+        if (this.sample !== undefined && this.sample !== null) {
             this.$('input#name').val(this.sample.get('name') || null);
             this.$('input#description').val(this.sample.get('description') || null);
             const tags = this.sample.get('eventTypes') || [];
@@ -64,4 +64,4 @@ var AddSampleView = View.extend({
     }
 });
 
-export default AddSampleView;
+export default AddSampleDialog;

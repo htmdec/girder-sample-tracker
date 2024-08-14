@@ -12,7 +12,7 @@ import 'girder/utilities/jquery/girderModal';
 
 import 'bootstrap/js/dropdown';
 
-var AddEventView = View.extend({
+var AddEventDialog = View.extend({
     events: {
         'submit #g-event-form': function (e) {
             e.preventDefault();
@@ -69,4 +69,4 @@ var AddEventView = View.extend({
     }
 });
 
-export default AddEventView;
+export default AddEventDialog;
