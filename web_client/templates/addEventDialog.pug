@@ -7,7 +7,12 @@
       .modal-body
         .form-group
           label(for="eventType") Event Type
-          input#eventType.form-control(type="text", name="eventType")
+          if sample.get("eventTypes")
+            select#eventType.form-control(name="eventType")
+              each eventType in sample.get("eventTypes")
+                option(value=eventType) #{eventType}
+          else
+            input#eventType.form-control(type="text", name="eventType")
         .form-group
           label(for="comment") Comment
           input#comment.form-control(type="text", name="comment")

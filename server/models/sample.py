@@ -16,6 +16,7 @@ class Sample(AccessControlledModel):
                 "created",
                 "creator",
                 "description",
+                "eventTypes",
                 "updated",
                 "name",
                 "events",
@@ -25,7 +26,7 @@ class Sample(AccessControlledModel):
     def validate(self, doc):
         return doc
 
-    def create(self, name, creator, description=None, save=True):
+    def create(self, name, creator, description=None, eventTypes=None, save=True):
         now = datetime.datetime.utcnow()
 
         sample = {
@@ -33,6 +34,7 @@ class Sample(AccessControlledModel):
             "creator": creator["_id"],
             "created": now,
             "description": description,
+            "eventTypes": eventTypes or [],
             "updated": now,
             "events": [],
         }

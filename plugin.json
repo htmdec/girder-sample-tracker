@@ -4,6 +4,7 @@
     "version": "0.1.0",
     "npm": {
         "dependencies": {
+           "bootstrap-tagsinput": "^0.7.1"
         }
     }
 }

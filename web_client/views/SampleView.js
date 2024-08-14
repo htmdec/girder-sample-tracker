@@ -8,6 +8,7 @@ import { AccessType } from 'girder/constants';
 import SampleTemplate from '../templates/sampleView.pug';
 import '../stylesheets/sampleView.styl';
 import AddEventView from './AddEvent';
+import AddSampleView from './AddSample';
 
 var SampleView = View.extend({
     events: {
@@ -15,7 +16,14 @@ var SampleView = View.extend({
             this.addEventDialog();
         },
         'click .g-edit-access': 'editAccess',
-        'click .g-delete-sample': 'destroySample'
+        'click .g-delete-sample': 'destroySample',
+        'click .g-edit-sample': function () {
+            event.preventDefault();
+            new AddSampleView({
+                el: $('#g-dialog-container'),
+                parentView: this
+            }).render();
+        }
     },
 
     initialize: function (settings) {

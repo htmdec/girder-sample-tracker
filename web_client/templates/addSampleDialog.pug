@@ -7,10 +7,21 @@
       .modal-body
         .form-group
           label(for="name") Name
-          input#name.form-control(type="text", name="name")
+          input#name.form-control(type="text", name="name", required)
         .form-group
           label(for="comment") Description
           input#description.form-control(type="text", name="description")
+        .form-group
+          i.icon-tags
+          label(for="eventTypes") Event Types
+          p.
+            Defined allowed event types for this sample.
+            You can add multiple event types by separating them with commas.
+            For example: "shipped, received, forging, XRD".
+            If left empty, all event types are allowed.
+          input#eventTypes.form-control(type="text", name="eventTypes", data-role="tagsinput")
       .modal-footer
         a.btn.btn-default(data-dismiss="modal") Close
         button#g-sample-btn.btn.btn-primary(type="submit") Save
+
+.g-validation-failed-meesage

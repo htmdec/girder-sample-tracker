@@ -10,6 +10,8 @@ import AddEventDialogTemplate from '../templates/addEventDialog.pug';
 import 'girder/utilities/jquery/girderEnable';
 import 'girder/utilities/jquery/girderModal';
 
+import 'bootstrap/js/dropdown';
+
 var AddEventView = View.extend({
     events: {
         'submit #g-event-form': function (e) {

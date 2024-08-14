@@ -6,19 +6,34 @@ import { handleClose, handleOpen } from 'girder/dialog';
 
 import AddSampleDialogTemplate from '../templates/addSampleDialog.pug';
 import SampleModel from '../models/SampleModel';
+import '../stylesheets/addSampleDialog.styl';
 
 import 'girder/utilities/jquery/girderModal';
+import 'bootstrap-tagsinput';
+import 'bootstrap-tagsinput/dist/bootstrap-tagsinput.css';
 
 var AddSampleView = View.extend({
     events: {
         'submit #g-sample-form': function (e) {
             e.preventDefault();
-            const data = $(e.currentTarget).serializeArray();
-            const params = new Map(data.map((obj) => [obj.name, obj.value]));
-            const sample = new SampleModel(Object.fromEntries(params)).on('g:saved', function () {
-            }).on('g:saved', function () {
-                router.navigate('sample/' + sample.responseJSON._id, {trigger: true});
-            }, this).save();
+            var eventTypes = this.$('input#eventTypes').val().trim().split(',');
+            if (eventTypes.length === 1 && eventTypes[0] === '') {
+                eventTypes = [];
+            }
+            const params = {
+                'name': this.$('input#name').val().trim(),
+                'description': this.$('input#description').val().trim(),
+                'eventTypes': JSON.stringify(eventTypes)
+            };
+            if (this.sample !== undefined && this.sample !== null) {
+                this.sample.set(params).on('g:saved', function () {
+                    router.navigate('sample/' + this.id, {trigger: true});
+                }).save();
+            } else {
+                const sample = new SampleModel(params).on('g:saved', function () {
+                    router.navigate('sample/' + sample.responseJSON._id, {trigger: true});
+                }, this).save();
+            }
         }
     },
 
@@ -34,7 +49,17 @@ var AddSampleView = View.extend({
                 handleClose('addSample', {replace: true});
             });
         handleOpen('addSample', {replace: true});
-        this.$('#g-name').focus();
+        this.$('input#eventTypes').tagsinput();
+        if (this.sample !== null) {
+            this.$('input#name').val(this.sample.get('name') || null);
+            this.$('input#description').val(this.sample.get('description') || null);
+            const tags = this.sample.get('eventTypes') || [];
+            tags.forEach((tag) => {
+                this.$('input#eventTypes').tagsinput('add', tag);
+            });
+        }
+        this.$('input#name').focus();
+
         return this;
     }
 });

@@ -1,10 +1,13 @@
 .g-sample-header
   .g-sample-actions
-    button.g-back.btn.btn-sm.btn-primary(onclick="window.history.back()", title="Back to samples")
+    a.button.g-back.btn.btn-sm.btn-primary(href='#samples', title="Back to samples")
       i.icon-left
     if (level >= AccessType.WRITE)
       button.g-new-event.btn.btn-sm.btn-success(title="Add a new event")
         i.icon-plus
+    if (level >= AccessType.ADMIN)
+      button.g-edit-sample.btn.btn-sm.btn-warning(title="Edit sample")
+        i.icon-pencil
     if (level >= AccessType.ADMIN)
       button.g-access-sample.g-edit-access.btn.btn-sm.btn-warning(title="Access control")
         i.icon-lock
