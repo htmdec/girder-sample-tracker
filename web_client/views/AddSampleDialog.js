@@ -23,7 +23,8 @@ var AddSampleDialog = View.extend({
             const params = {
                 'name': this.$('input#name').val().trim(),
                 'description': this.$('input#description').val().trim(),
-                'eventTypes': JSON.stringify(eventTypes)
+                'eventTypes': JSON.stringify(eventTypes),
+                'batchSize': this.$('input#batchSize').val().trim(),
             };
             if (this.sample !== undefined && this.sample !== null) {
                 this.sample.set(params).on('g:saved', function () {

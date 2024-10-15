@@ -1,9 +1,11 @@
 import datetime
+import math
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, filtermodel
 from girder.constants import AccessType, SortDir, TokenScope
+from girder.exceptions import ValidationException
 
 from ..models.sample import Sample as SampleModel
 
@@ -86,15 +88,40 @@ class Sample(Resource):
             required=False,
             requireArray=True,
         )
+        .param(
+            "batchSize",
+            "The size of the batch. Default 1. Cannot be less than 1 and greater than 64.",
+            required=False,
+            dataType="integer",
+        )
     )
     @filtermodel(model="sample", plugin="sample_tracker")
-    def create_sample(self, name, description, eventTypes):
+    def create_sample(self, name, description, eventTypes, batchSize):
+        if batchSize < 1 or batchSize > 64:
+            raise ValidationException(
+                "Batch size must be at least 1, but no more than 64."
+            )
         if not eventTypes:
             eventTypes = []
         user = self.getCurrentUser()
-        return SampleModel().create(
-            name, user, description=description, eventTypes=eventTypes
-        )
+        samples = []
+        if batchSize > 1:
+            format_str = "{name}{i:0" + str(math.ceil(math.log10(batchSize))) + "d}"
+            for i in range(batchSize):
+                sample = SampleModel().create(
+                    format_str.format(name=name, i=i),
+                    user,
+                    description=description,
+                    eventTypes=eventTypes,
+                )
+                samples.append(sample)
+        else:
+            samples.append(
+                SampleModel().create(
+                    name, user, description=description, eventTypes=eventTypes
+                )
+            )
+        return samples[0]
 
     @access.user
     @autoDescribeRoute(

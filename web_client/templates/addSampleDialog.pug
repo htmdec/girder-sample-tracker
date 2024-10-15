@@ -20,6 +20,12 @@
             For example: "shipped, received, forging, XRD".
             If left empty, all event types are allowed.
           input#eventTypes.form-control(type="text", name="eventTypes", data-role="tagsinput")
+        .form-group
+          label(for="batchSize") Batch Size (optional)
+          p.
+            If provided, N samples will be created. <b>Name</b> field will be used as a common stem for all samples, and each sample will be suffixed
+            with a 0-padded consecutive number from 1 to N.
+          input#batchSize.form-control(type="number", name="batchSize")
       .modal-footer
         a.btn.btn-default(data-dismiss="modal") Close
         button#g-sample-btn.btn.btn-primary(type="submit") Save
