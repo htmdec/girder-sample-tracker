@@ -1,5 +1,7 @@
 import datetime
+import io
 
+import qrcode
 from girder.constants import AccessType
 from girder.models.model_base import AccessControlledModel
 
@@ -53,3 +55,18 @@ class Sample(AccessControlledModel):
             sample = self.save(sample)
 
         return sample
+
+    def qr_code(self, sample, url):
+        buf = io.BytesIO()
+        qr = qrcode.QRCode(
+            version=2,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(f"{url}/#sample/{sample['_id']}/add")
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        img.save(buf, format="PNG")
+        return buf

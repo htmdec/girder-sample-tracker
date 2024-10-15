@@ -12,15 +12,30 @@
   .g-clear-right
 
 .g-samples-list-table
+  .g-samples-list-actions
+    input.g-select-all(type="checkbox", title="Select / Unselect all samples")
+
+    .btn-group
+      button.g-checked-actions-button.btn.btn-sm.btn-default.dropdown-toggle(
+        data-toggle="dropdown"
+        disabled
+        title="Actions on selected samples")
+        i.icon-check
+        i.icon-down-dir
+      ul.g-checked-actions-menu.dropdown-menu(role="menu")
+
   table.g-samples-widget
     thead
       tr
+        th(style="width: 30px;")
         th Name
         th Created
         th Updated
     tbody
       each sample in samples
         tr(g-sample-id=sample.id)
+          td
+            input.g-select-sample(type="checkbox", title="Select / Unselect this sample", g-sample-cid=sample.cid)
           td
             a.g-view-sample(cid=sample.cid)= sample.get("name")
           td= formatDate(sample.get("created"), DATE_DAY)

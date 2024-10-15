@@ -1,13 +1,33 @@
 import datetime
 import math
+from urllib.parse import urlparse
 
+import cherrypy
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, filtermodel
+from girder.api.rest import (
+    Resource,
+    filtermodel,
+    setContentDisposition,
+    setResponseHeader,
+)
 from girder.constants import AccessType, SortDir, TokenScope
-from girder.exceptions import ValidationException
+from girder.exceptions import RestException, ValidationException
+from girder.utility import ziputil
+from girder.utility.progress import ProgressContext
 
 from ..models.sample import Sample as SampleModel
+
+
+def bytesio_iterator(bio, chunk_size=4096):
+    """
+    Iterates over the content of a BytesIO object in chunks.
+    """
+    while True:
+        chunk = bio.read(chunk_size)
+        if not chunk:
+            break
+        yield chunk
 
 
 class Sample(Resource):
@@ -15,6 +35,8 @@ class Sample(Resource):
         super(Sample, self).__init__()
         self.resourceName = "sample"
         self.route("GET", (), self.list_samples)
+        self.route("DELETE", (), self.delete_samples)
+        self.route("POST", ("download",), self.download_samples)
         self.route("GET", (":id",), self.get_sample)
         self.route("PUT", (":id",), self.update_sample)
         self.route("POST", (), self.create_sample)
@@ -109,7 +131,7 @@ class Sample(Resource):
             format_str = "{name}{i:0" + str(math.ceil(math.log10(batchSize))) + "d}"
             for i in range(batchSize):
                 sample = SampleModel().create(
-                    format_str.format(name=name, i=i),
+                    format_str.format(name=name, i=i+1),
                     user,
                     description=description,
                     eventTypes=eventTypes,
@@ -132,6 +154,43 @@ class Sample(Resource):
     @filtermodel(model="sample", plugin="sample_tracker")
     def delete_sample(self, sample):
         SampleModel().remove(sample)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Delete multiple samples")
+        .jsonParam(
+            "ids",
+            "The IDs of the samples to delete",
+            requireArray=True,
+        )
+        .param(
+            "progress",
+            "Whether to record progress on this task.",
+            default=False,
+            required=False,
+            dataType="boolean",
+        )
+    )
+    def delete_samples(self, ids, progress):
+        user = self.getCurrentUser()
+        total = len(ids)
+        with ProgressContext(
+            progress,
+            user=user,
+            title="Deleting resources",
+            message="Calculating size...",
+        ) as ctx:
+            ctx.update(total=total)
+            current = 0
+            for sample_id in ids:
+                doc = SampleModel().load(
+                    sample_id, user=user, level=AccessType.ADMIN, exc=True
+                )
+                SampleModel().remove(doc, progress=ctx)
+                if progress:
+                    current += 1
+                    if ctx.progress["data"]["current"] != current:
+                        ctx.update(current=current, message="Deleted sample")
 
     @access.user
     @autoDescribeRoute(
@@ -193,3 +252,35 @@ class Sample(Resource):
             "location": location,
         }
         return SampleModel().add_event(sample, event)
+
+    @access.cookie(force=True)
+    @access.public(scope=TokenScope.DATA_READ)
+    @autoDescribeRoute(
+        Description("Download QR codes for a list of samples").jsonParam(
+            "ids",
+            "The IDs of the samples to download",
+            requireArray=True,
+        )
+    )
+    def download_samples(self, ids):
+        user = self.getCurrentUser()
+        url = urlparse(cherrypy.request.headers["Referer"])
+        girder_base = f"{url.scheme}://{url.netloc}"
+        for sample_id in ids:
+            if not SampleModel().load(sample_id, user=user, level=AccessType.READ):
+                raise RestException(f"Sample {sample_id} not found or access denied.")
+        setResponseHeader("Content-Type", "application/zip")
+        setContentDisposition("samples.zip")
+
+        def stream():
+            _zip = ziputil.ZipGenerator()
+            for sample_id in ids:
+                doc = SampleModel().load(sample_id, user=user, level=AccessType.READ)
+                qr_img = SampleModel().qr_code(doc, girder_base)
+                def qr_stream():
+                    yield qr_img.getvalue()
+                for data in _zip.addFile(qr_stream, f"{doc['name']}.png"):
+                    yield data
+            yield _zip.footer()
+
+        return stream
