@@ -28,7 +28,9 @@ class Sample(AccessControlledModel):
     def validate(self, doc):
         return doc
 
-    def create(self, name, creator, description=None, eventTypes=None, save=True):
+    def create(
+        self, name, creator, description=None, eventTypes=None, access=None, save=True
+    ):
         now = datetime.datetime.utcnow()
 
         sample = {
@@ -41,7 +43,10 @@ class Sample(AccessControlledModel):
             "events": [],
         }
 
-        self.setUserAccess(sample, user=creator, level=AccessType.ADMIN, save=False)
+        if access is not None:
+            self.setAccessList(sample, access, save=False, user=creator)
+        else:
+            self.setUserAccess(sample, user=creator, level=AccessType.ADMIN, save=False)
         if save:
             sample = self.save(sample)
 

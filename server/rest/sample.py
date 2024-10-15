@@ -116,9 +116,12 @@ class Sample(Resource):
             required=False,
             dataType="integer",
         )
+        .jsonParam(
+            "access", "The access control list as a JSON object", requireObject=False
+        )
     )
     @filtermodel(model="sample", plugin="sample_tracker")
-    def create_sample(self, name, description, eventTypes, batchSize):
+    def create_sample(self, name, description, eventTypes, batchSize, access):
         if batchSize < 1 or batchSize > 64:
             raise ValidationException(
                 "Batch size must be at least 1, but no more than 64."
@@ -135,12 +138,13 @@ class Sample(Resource):
                     user,
                     description=description,
                     eventTypes=eventTypes,
+                    access=access,
                 )
                 samples.append(sample)
         else:
             samples.append(
                 SampleModel().create(
-                    name, user, description=description, eventTypes=eventTypes
+                    name, user, description=description, eventTypes=eventTypes, access=access
                 )
             )
         return samples[0]

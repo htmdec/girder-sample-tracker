@@ -68,7 +68,11 @@ var SampleView = View.extend({
             el: $('#g-dialog-container'),
             model: this.model,
             modelType: 'sample',
-            parentView: this
+            parentView: this,
+            hideRecurseOption: true,
+            hidePrivacyEditor: true,
+            hideAccessType: false,
+            noAccessFlag: true,
         }, this).render();
     }
 });
