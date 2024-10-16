@@ -1,9 +1,33 @@
-.g-samples-actions
-  float right
+$buttonBg
+$buttonBorder = 1px solid #ccc
+$buttonHoverBg = linear-gradient(to bottom, #e2e2e2 0, #eee 80%)
+$borderRadius = 3px
 
+.g-samples-actions
   button
     margin-left 10px
     padding 4px 8px
+
+.g-filter-samples
+  display table-row
+  color #333
+
+  .g-filter-options-button
+    color #333
+    display table-cell
+    border-radius $borderRadius 0 0 $borderRadius
+    margin-right 0
+    border $buttonBorder
+    background-color $buttonBg
+
+    &:hover
+      background-image $buttonHoverBg
+
+  .g-filter-field
+    display table-cell
+    border-radius 0 $borderRadius $borderRadius 0
+    margin-left 0
+    border-left none
 
 .g-samples-list-table
 

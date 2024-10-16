@@ -37,16 +37,19 @@ var SampleListView = View.extend({
         },
         'click a.g-delete-checked': 'deleteCheckedDialog',
         'click a.g-download-checked': 'downloadChecked',
+        'input .g-filter-field': 'search',
     },
 
     initialize: function (settings) {
+        this.ajaxLock = false;
+        this.pending = null;
         this.parentView = settings.parentView;
         this.parentModel = settings.parentModel;
         this.checked = [];
         this.collection = new SampleCollection();
         this.collection.on('g:changed', function () {
             this.render();
-        }, this).fetch({}, true);
+        }, this).fetch({});
         this.paginateWidget = new PaginateWidget({
             collection: this.collection,
             parentView: this
@@ -80,8 +83,10 @@ var SampleListView = View.extend({
         return this;
     },
 
-    updateChecked: function () {
-        this.recomputeChecked();
+    updateChecked: function (count=true) {
+        if (count) {
+           this.recomputeChecked();
+        }
         var samples = this.checked;
 
         var minSampleLevel = AccessType.ADMIN;
@@ -91,7 +96,6 @@ var SampleListView = View.extend({
             return minSampleLevel > AccessType.READ;
         }, this);
 
-        console.log('minSampleLevel', minSampleLevel);
 
         let anyChecked = samples.length > 0;
         this.checkedMenuWidget.update({
@@ -104,6 +108,16 @@ var SampleListView = View.extend({
         return _.map(this.checked, function (cid) {
             return this.collection.get(cid).id;
         }, this);
+    },
+
+    _setCheckboxes: function (checked) {
+        _.each(this.$('.g-select-sample'), function (checkbox) {
+            var sample_id = this.collection.get($(checkbox).attr('g-sample-cid')).id;
+            if (checked.includes(sample_id)) {
+                $(checkbox).prop('checked', true);
+            }
+        }
+        , this);
     },
 
     deleteCheckedDialog: function () {
@@ -132,7 +146,6 @@ var SampleListView = View.extend({
     },
 
     redirectViaForm: function (method, url, data) {
-        console.log('redirectViaForm', method, url, data);
         var form = $('<form>').attr({action: url, method: method});
         _.each(data, function (value, key) {
             form.append($('<input/>').attr({type: 'text', name: key, value: value}));
@@ -141,12 +154,33 @@ var SampleListView = View.extend({
     },
 
     downloadChecked: function () {
-        console.log('downloadChecked');
         var url = getApiRoot() + '/sample/download';
         this.redirectViaForm('POST', url, {
             ids: JSON.stringify(this._getCheckedSampleIds())
         });
+    },
+
+    search: function () {
+        var q = this.$('.g-filter-field').val();
+        if (!q) {
+            this.collection.filterFunc = null;
+        } else {
+            this.collection.filterFunc = function (model) {
+                var match = model.name.match(new RegExp(q, 'i'));
+                return match;
+            }
+        }
+        const old_checked = this._getCheckedSampleIds();
+        this.collection.on('g:changed', function () {
+            this.render();
+            this._setCheckboxes(old_checked);
+            this.updateChecked();
+            this.$('.g-filter-field').val(q);
+            this.$('.g-filter-field').focus();
+        }, this).fetch({}, true);
+        return this;
     }
+
 });
 
 export default SampleListView;
