@@ -10,11 +10,11 @@ var SampleCreationPolicyModel = AccessControlledModel.extend({
         var currentUser = getCurrentUser();
         if (currentUser) {
             users.push({
-              "id": currentUser.id,
-              "level": AccessType.ADMIN,
-              "flags": [],
-              "login": currentUser.login,
-              "name": currentUser.name()
+                'id': currentUser.id,
+                'level': AccessType.ADMIN,
+                'flags': [],
+                'login': currentUser.login,
+                'name': currentUser.name()
             });
         }
         this.set('access', {

@@ -36,6 +36,7 @@ class Sample(Resource):
         self.resourceName = "sample"
         self.route("GET", (), self.list_samples)
         self.route("DELETE", (), self.delete_samples)
+        self.route("PUT", ("access",), self.bulk_update_access)
         self.route("POST", ("download",), self.download_samples)
         self.route("GET", (":id",), self.get_sample)
         self.route("PUT", (":id",), self.update_sample)
@@ -134,7 +135,7 @@ class Sample(Resource):
             format_str = "{name}{i:0" + str(math.ceil(math.log10(batchSize))) + "d}"
             for i in range(batchSize):
                 sample = SampleModel().create(
-                    format_str.format(name=name, i=i+1),
+                    format_str.format(name=name, i=i + 1),
                     user,
                     description=description,
                     eventTypes=eventTypes,
@@ -144,7 +145,11 @@ class Sample(Resource):
         else:
             samples.append(
                 SampleModel().create(
-                    name, user, description=description, eventTypes=eventTypes, access=access
+                    name,
+                    user,
+                    description=description,
+                    eventTypes=eventTypes,
+                    access=access,
                 )
             )
         return samples[0]
@@ -234,6 +239,41 @@ class Sample(Resource):
             sample, access, save=True, user=self.getCurrentUser()
         )
 
+    @access.user(scope=TokenScope.DATA_OWN)
+    @autoDescribeRoute(
+        Description("Update the access control list for multiple samples")
+        .jsonParam(
+            "ids",
+            "The IDs of the samples to update",
+            requireArray=True,
+        )
+        .jsonParam(
+            "access", "The access control list as a JSON object", requireObject=True
+        )
+        .jsonParam(
+            "publicFlags",
+            "Public access control flags",
+            requireArray=True,
+            required=False,
+        )
+        .param(
+            "public",
+            "Whether the resource should be publicly visible",
+            dataType="boolean",
+            required=False,
+        )
+        .errorResponse("ID was invalid.")
+        .errorResponse("Admin access was denied for the sample.", 403)
+    )
+    def bulk_update_access(self, ids, access, publicFlags, public):
+        user = self.getCurrentUser()
+        for sample_id in ids:
+            doc = SampleModel().load(
+                sample_id, user=user, level=AccessType.ADMIN, exc=True
+            )
+            sample = SampleModel().setAccessList(doc, access, save=True, user=user)
+        return sample
+
     @access.user
     @autoDescribeRoute(
         Description("Create an event for a sample")
@@ -281,8 +321,10 @@ class Sample(Resource):
             for sample_id in ids:
                 doc = SampleModel().load(sample_id, user=user, level=AccessType.READ)
                 qr_img = SampleModel().qr_code(doc, girder_base)
+
                 def qr_stream():
                     yield qr_img.getvalue()
+
                 for data in _zip.addFile(qr_stream, f"{doc['name']}.png"):
                     yield data
             yield _zip.footer()

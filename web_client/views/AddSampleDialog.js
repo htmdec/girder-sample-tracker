@@ -1,5 +1,3 @@
-import $ from 'jquery';
-
 import router from 'girder/router';
 import View from 'girder/views/View';
 import AccessWidget from 'girder/views/widgets/AccessWidget';
@@ -62,7 +60,7 @@ var AddSampleDialog = View.extend({
             tags.forEach((tag) => {
                 this.$('input#eventTypes').tagsinput('add', tag);
             });
-        } else {  // Only show access widget if creating a new sample
+        } else { // Only show access widget if creating a new sample
             var sampleModel = new SampleCreationPolicyModel();
             this.accessWidget = new AccessWidget({
                 el: this.$('.access-widget-container'),
@@ -74,7 +72,7 @@ var AddSampleDialog = View.extend({
                 hideSaveButton: true,
                 hidePrivacyEditor: true,
                 hideAccessType: false,
-                noAccessFlag: true,
+                noAccessFlag: true
             });
         }
         this.$('input#name').focus();

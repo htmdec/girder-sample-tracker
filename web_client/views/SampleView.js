@@ -72,7 +72,7 @@ var SampleView = View.extend({
             hideRecurseOption: true,
             hidePrivacyEditor: true,
             hideAccessType: false,
-            noAccessFlag: true,
+            noAccessFlag: true
         }, this).render();
     }
 });

@@ -1,3 +1,5 @@
+import _ from 'underscore';
+
 import router from 'girder/router';
 import View from 'girder/views/View';
 import PaginateWidget from 'girder/views/widgets/PaginateWidget';
@@ -11,6 +13,7 @@ import SampleCollection from '../collections/SampleCollection';
 import SampleListTemplate from '../templates/sampleList.pug';
 import CheckedMenuWidget from './CheckedMenuWidget';
 import AddSampleDialog from './AddSampleDialog';
+import AccessBatchDialog from './AccessBatchDialog';
 
 import '../stylesheets/sampleList.styl';
 
@@ -32,12 +35,12 @@ var SampleListView = View.extend({
             this.updateChecked();
         },
         'click .g-select-sample': function (event) {
-            var checkbox = $(event.currentTarget);
             this.updateChecked();
         },
         'click a.g-delete-checked': 'deleteCheckedDialog',
+        'click a.g-access-checked': 'accessCheckedDialog',
         'click a.g-download-checked': 'downloadChecked',
-        'input .g-filter-field': 'search',
+        'input .g-filter-field': 'search'
     },
 
     initialize: function (settings) {
@@ -83,9 +86,9 @@ var SampleListView = View.extend({
         return this;
     },
 
-    updateChecked: function (count=true) {
+    updateChecked: function (count = true) {
         if (count) {
-           this.recomputeChecked();
+            this.recomputeChecked();
         }
         var samples = this.checked;
 
@@ -96,11 +99,10 @@ var SampleListView = View.extend({
             return minSampleLevel > AccessType.READ;
         }, this);
 
-
-        let anyChecked = samples.length > 0;
+        // let anyChecked = samples.length > 0;
         this.checkedMenuWidget.update({
             minSampleLevel: minSampleLevel,
-            pickedCount: samples.length,
+            pickedCount: samples.length
         });
     },
 
@@ -112,12 +114,17 @@ var SampleListView = View.extend({
 
     _setCheckboxes: function (checked) {
         _.each(this.$('.g-select-sample'), function (checkbox) {
-            var sample_id = this.collection.get($(checkbox).attr('g-sample-cid')).id;
-            if (checked.includes(sample_id)) {
+            var sampleId = this.collection.get($(checkbox).attr('g-sample-cid')).id;
+            if (checked.includes(sampleId)) {
                 $(checkbox).prop('checked', true);
             }
         }
-        , this);
+            , this);
+    },
+
+    _clearChecked: function () {
+        this.checked = [];
+        this.updateChecked(false);
     },
 
     deleteCheckedDialog: function () {
@@ -153,6 +160,18 @@ var SampleListView = View.extend({
         $(form).appendTo('body').submit().remove();
     },
 
+    accessCheckedDialog: function () {
+        var samples = this._getCheckedSampleIds();
+        var sample = this.collection.get(samples[0]);
+        new AccessBatchDialog({
+            el: $('#g-dialog-container'),
+            model: sample,
+            modelType: 'sample',
+            parentView: this,
+            samples: samples
+        }, this).render();
+    },
+
     downloadChecked: function () {
         var url = getApiRoot() + '/sample/download';
         this.redirectViaForm('POST', url, {
@@ -168,12 +187,12 @@ var SampleListView = View.extend({
             this.collection.filterFunc = function (model) {
                 var match = model.name.match(new RegExp(q, 'i'));
                 return match;
-            }
+            };
         }
-        const old_checked = this._getCheckedSampleIds();
+        const oldChecked = this._getCheckedSampleIds();
         this.collection.on('g:changed', function () {
             this.render();
-            this._setCheckboxes(old_checked);
+            this._setCheckboxes(oldChecked);
             this.updateChecked();
             this.$('.g-filter-field').val(q);
             this.$('.g-filter-field').focus();
