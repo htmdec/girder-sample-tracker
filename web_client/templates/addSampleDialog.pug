@@ -3,7 +3,10 @@
     form#g-sample-form.modal-form(role="form")
       .modal-header
         button.close(type="button", data-dismiss="modal", aria-hidden="true") &times;
-        h4.modal-title Create a new sample for tracking
+        if isNew
+          h4.modal-title Create a new sample for tracking
+        else
+          h4.modal-title Edit sample details
       .modal-body
         .form-group
           label(for="name") Name
@@ -20,6 +23,15 @@
             For example: "shipped, received, forging, XRD".
             If left empty, all event types are allowed.
           input#eventTypes.form-control(type="text", name="eventTypes", data-role="tagsinput")
+        if isNew
+          .form-group
+            label(for="batchSize") Batch Size (optional)
+            p.
+              If provided, N samples will be created. <b>Name</b> field will be used as a common stem for all samples, and each sample will be suffixed
+              with a 0-padded consecutive number from 1 to N.
+            input#batchSize.form-control(type="number", name="batchSize")
+          .form-group
+            .access-widget-container
       .modal-footer
         a.btn.btn-default(data-dismiss="modal") Close
         button#g-sample-btn.btn.btn-primary(type="submit") Save

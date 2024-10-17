@@ -1,0 +1,17 @@
+.modal-dialog
+  .modal-content
+    form#g-batch-samples-form.modal-form(role="form")
+      .modal-header
+        button.close(type="button", data-dismiss="modal", aria-hidden="true") &times;
+        h4.modal-title Change access to selected samples
+        p.
+          You are about to change the access to the selected samples. This will affect the access of the samples for all users.
+      .modal-body
+        .form-group
+          label(for="access") Access control
+          .access-widget-container
+      .modal-footer
+        a.btn.btn-default(data-dismiss="modal") Close
+        button#g-batch-sample-btn.btn.btn-primary(type="submit") Save
+
+.g-validation-failed-message

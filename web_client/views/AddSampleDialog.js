@@ -1,10 +1,10 @@
-import $ from 'jquery';
-
 import router from 'girder/router';
 import View from 'girder/views/View';
+import AccessWidget from 'girder/views/widgets/AccessWidget';
 import { handleClose, handleOpen } from 'girder/dialog';
 
 import AddSampleDialogTemplate from '../templates/addSampleDialog.pug';
+import SampleCreationPolicyModel from '../models/SampleCreationPolicyModel';
 import SampleModel from '../models/SampleModel';
 import '../stylesheets/addSampleDialog.styl';
 
@@ -23,7 +23,9 @@ var AddSampleDialog = View.extend({
             const params = {
                 'name': this.$('input#name').val().trim(),
                 'description': this.$('input#description').val().trim(),
-                'eventTypes': JSON.stringify(eventTypes)
+                'eventTypes': JSON.stringify(eventTypes),
+                'batchSize': this.$('input#batchSize').val().trim(),
+                'access': this.accessWidget ? JSON.stringify(this.accessWidget.getAccessList()) : null
             };
             if (this.sample !== undefined && this.sample !== null) {
                 this.sample.set(params).on('g:saved', function () {
@@ -39,10 +41,11 @@ var AddSampleDialog = View.extend({
 
     initialize: function (settings) {
         this.sample = settings.parentView.model;
+        this.isNew = this.sample === undefined || this.sample === null;
     },
 
     render: function () {
-        this.$el.html(AddSampleDialogTemplate({})).girderModal(this)
+        this.$el.html(AddSampleDialogTemplate({isNew: this.isNew})).girderModal(this)
             .on('shown.bs.modal', () => {
                 this.$('#g-name').focus();
             }).on('hidden.bs.modal', () => {
@@ -56,6 +59,20 @@ var AddSampleDialog = View.extend({
             const tags = this.sample.get('eventTypes') || [];
             tags.forEach((tag) => {
                 this.$('input#eventTypes').tagsinput('add', tag);
+            });
+        } else { // Only show access widget if creating a new sample
+            var sampleModel = new SampleCreationPolicyModel();
+            this.accessWidget = new AccessWidget({
+                el: this.$('.access-widget-container'),
+                parentView: this,
+                modelType: 'sample',
+                model: sampleModel,
+                modal: false,
+                hideRecurseOption: true,
+                hideSaveButton: true,
+                hidePrivacyEditor: true,
+                hideAccessType: false,
+                noAccessFlag: true
             });
         }
         this.$('input#name').focus();

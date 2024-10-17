@@ -1,0 +1,19 @@
+li.g-checked-menu-header.dropdown-header(role="presentation")
+  if pickedCount
+    i.icon-plus-circled
+    span.g-checked-picked-count #{pickedCount}
+if pickedCount
+  li
+    a.g-download-checked
+      i.icon-download
+      | Download QR codes for selected samples
+
+  if (minSampleLevel >= AccessType.ADMIN)
+    li.g-admin.divider
+    li.g-admin
+      a.g-access-checked
+        i.icon-lock
+        | Change access to selected samples
+      a.g-delete-checked
+        i.icon-trash
+        | Delete checked samples
