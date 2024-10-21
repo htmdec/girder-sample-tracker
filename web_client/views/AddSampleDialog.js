@@ -24,9 +24,12 @@ var AddSampleDialog = View.extend({
                 'name': this.$('input#name').val().trim(),
                 'description': this.$('input#description').val().trim(),
                 'eventTypes': JSON.stringify(eventTypes),
-                'batchSize': this.$('input#batchSize').val().trim(),
                 'access': this.accessWidget ? JSON.stringify(this.accessWidget.getAccessList()) : null
             };
+            let batchSize = this.$('input#batchSize').val().trim();
+            if (batchSize) {
+                params['batchSize'] = batchSize;
+            }
             if (this.sample !== undefined && this.sample !== null) {
                 this.sample.set(params).on('g:saved', function () {
                     router.navigate('sample/' + this.id, {trigger: true});
