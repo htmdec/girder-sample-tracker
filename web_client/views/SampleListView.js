@@ -179,24 +179,36 @@ var SampleListView = View.extend({
         });
     },
 
+    _sanitizeRegex: function (q) {
+        return q.replaceAll(/[&/\\#,+()$~%.^'":*?<>{}]/g, '');
+    },
+
     search: function () {
-        var q = this.$('.g-filter-field').val();
-        if (!q) {
-            this.collection.filterFunc = null;
-        } else {
-            this.collection.filterFunc = function (model) {
-                var match = model.name.match(new RegExp(q, 'i'));
-                return match;
-            };
+        // only search when the user stops typing
+        if (this.pending) {
+            clearTimeout(this.pending);
         }
-        const oldChecked = this._getCheckedSampleIds();
-        this.collection.on('g:changed', function () {
-            this.render();
-            this._setCheckboxes(oldChecked);
-            this.updateChecked();
-            this.$('.g-filter-field').val(q);
-            this.$('.g-filter-field').focus();
-        }, this).fetch({}, true);
+
+        this.pending = setTimeout(() => {
+            var q = this.$('.g-filter-field').val();
+            if (!q) {
+                this.collection.filterFunc = null;
+            } else {
+                let regex = this._sanitizeRegex(q);
+                this.collection.filterFunc = function (model) {
+                    var match = model.name.match(new RegExp(regex, 'i'));
+                    return match;
+                };
+            }
+            const oldChecked = this._getCheckedSampleIds();
+            this.collection.on('g:changed', function () {
+                this.render();
+                this._setCheckboxes(oldChecked);
+                this.updateChecked();
+                this.$('.g-filter-field').val(q);
+                this.$('.g-filter-field').focus();
+            }, this).fetch({}, true);
+        }, 500);
         return this;
     }
 
