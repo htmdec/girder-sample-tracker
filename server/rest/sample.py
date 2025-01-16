@@ -123,6 +123,8 @@ class Sample(Resource):
     )
     @filtermodel(model="sample", plugin="sample_tracker")
     def create_sample(self, name, description, eventTypes, batchSize, access):
+        if batchSize is None:
+            batchSize = 1
         if batchSize < 1 or batchSize > 64:
             raise ValidationException(
                 "Batch size must be at least 1, but no more than 64."
