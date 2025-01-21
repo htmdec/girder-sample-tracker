@@ -26,8 +26,8 @@ var AddSampleDialog = View.extend({
                 'eventTypes': JSON.stringify(eventTypes),
                 'access': this.accessWidget ? JSON.stringify(this.accessWidget.getAccessList()) : null
             };
-            let batchSize = this.$('input#batchSize').val().trim();
-            if (batchSize) {
+            let batchSize = this.$('input#batchSize').val()
+            if (batchSize !== undefined && batchSize !== null && batchSize.trim() !== '') {
                 params['batchSize'] = batchSize;
             }
             if (this.sample !== undefined && this.sample !== null) {

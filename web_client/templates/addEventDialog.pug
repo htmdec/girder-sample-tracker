@@ -7,7 +7,7 @@
       .modal-body
         .form-group
           label(for="eventType") Event Type
-          if sample.get("eventTypes")
+          if (tagsDropdown)
             select#eventType.form-control(name="eventType")
               each eventType in sample.get("eventTypes")
                 option(value=eventType) #{eventType}

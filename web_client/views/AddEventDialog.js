@@ -31,6 +31,8 @@ var AddEventDialog = View.extend({
 
     initialize: function (settings) {
         this.sample = settings.parentView.model;
+        this.eventTypes = this.sample.attributes.eventTypes;
+        console.log('AddEventDialog initialize');
     },
 
     geoLocation: function () {
@@ -55,7 +57,8 @@ var AddEventDialog = View.extend({
 
     render: function () {
         this.$el.html(AddEventDialogTemplate({
-            sample: this.sample
+            sample: this.sample,
+            tagsDropdown: this.eventTypes !== undefined ? this.eventTypes.length > 0 : false
         })).girderModal(this)
             .on('shown.bs.modal', () => {
                 this.geoLocation();
