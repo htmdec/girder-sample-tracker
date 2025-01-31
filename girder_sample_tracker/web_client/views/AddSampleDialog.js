@@ -1,16 +1,17 @@
-import router from 'girder/router';
-import View from 'girder/views/View';
-import AccessWidget from 'girder/views/widgets/AccessWidget';
-import { handleClose, handleOpen } from 'girder/dialog';
-
 import AddSampleDialogTemplate from '../templates/addSampleDialog.pug';
 import SampleCreationPolicyModel from '../models/SampleCreationPolicyModel';
 import SampleModel from '../models/SampleModel';
 import '../stylesheets/addSampleDialog.styl';
 
-import 'girder/utilities/jquery/girderModal';
+const router = girder.router;
+const View = girder.views.View;
+const AccessWidget = girder.views.widgets.AccessWidget;
+const { handleClose, handleOpen } = girder.dialog;
+
+import '@girder/core/utilities/jquery/girderModal';
 import 'bootstrap-tagsinput';
 import 'bootstrap-tagsinput/dist/bootstrap-tagsinput.css';
+
 
 var AddSampleDialog = View.extend({
     events: {
@@ -55,13 +56,13 @@ var AddSampleDialog = View.extend({
                 handleClose('addSample', {replace: true});
             });
         handleOpen('addSample', {replace: true});
-        this.$('input#eventTypes').tagsinput();
+        $('input#eventTypes').tagsinput();
         if (this.sample !== undefined && this.sample !== null) {
             this.$('input#name').val(this.sample.get('name') || null);
             this.$('input#description').val(this.sample.get('description') || null);
             const tags = this.sample.get('eventTypes') || [];
             tags.forEach((tag) => {
-                this.$('input#eventTypes').tagsinput('add', tag);
+                $('input#eventTypes').tagsinput('add', tag);
             });
         } else { // Only show access widget if creating a new sample
             var sampleModel = new SampleCreationPolicyModel();

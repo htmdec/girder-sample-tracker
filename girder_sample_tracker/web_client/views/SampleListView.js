@@ -1,13 +1,5 @@
+import $ from 'jquery';
 import _ from 'underscore';
-
-import router from 'girder/router';
-import View from 'girder/views/View';
-import PaginateWidget from 'girder/views/widgets/PaginateWidget';
-import { getCurrentUser } from 'girder/auth';
-import { AccessType } from 'girder/constants';
-import { confirm } from 'girder/dialog';
-import { formatDate, DATE_DAY } from 'girder/misc';
-import { restRequest, getApiRoot } from 'girder/rest';
 
 import SampleCollection from '../collections/SampleCollection';
 import SampleListTemplate from '../templates/sampleList.pug';
@@ -16,6 +8,16 @@ import AddSampleDialog from './AddSampleDialog';
 import AccessBatchDialog from './AccessBatchDialog';
 
 import '../stylesheets/sampleList.styl';
+
+const router = girder.router;
+const View = girder.views.View;
+const PaginateWidget = girder.views.widgets.PaginateWidget;
+const { getCurrentUser } = girder.auth;
+const { AccessType } = girder.constants;
+const { confirm } = girder.dialog;
+const { formatDate, DATE_DAY } = girder.misc;
+const { restRequest, getApiRoot } = girder.rest;
+
 
 var SampleListView = View.extend({
     events: {

@@ -1,9 +1,8 @@
 // Extends and overrides API
-import { wrap } from 'girder/utilities/PluginUtils';
-
-import GlobalNavView from 'girder/views/layout/GlobalNavView';
-
 import './routes';
+
+const { wrap } = girder.utilities.PluginUtils;
+const GlobalNavView = girder.views.layout.GlobalNavView;
 
 wrap(GlobalNavView, 'initialize', function (initialize) {
     initialize.apply(this, arguments);

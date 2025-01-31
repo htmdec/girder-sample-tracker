@@ -1,10 +1,10 @@
-import router from 'girder/router';
-import events from 'girder/events';
-import { getCurrentUser } from 'girder/auth';
-
 import SampleListView from './views/SampleListView';
 import SampleView from './views/SampleView';
 import SampleModel from './models/SampleModel';
+
+const router = girder.router;
+const events = girder.events;
+const { getCurrentUser } = girder.auth;
 
 router.route('samples', 'samples', function () {
     events.trigger('g:navigateTo', SampleListView);

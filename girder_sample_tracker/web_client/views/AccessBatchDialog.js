@@ -1,10 +1,10 @@
-import View from 'girder/views/View';
-
-import { handleClose, handleOpen } from 'girder/dialog';
-import { restRequest } from 'girder/rest';
-import AccessWidget from 'girder/views/widgets/AccessWidget';
-
 import AccessBatchDialogTemplate from '../templates/accessBatchDialog.pug';
+
+const View = girder.views.View;
+
+const { handleClose, handleOpen } = girder.dialog;
+const { restRequest } = girder.rest;
+const AccessWidget = girder.views.widgets.AccessWidget;
 
 var AccessBatchDialog = View.extend({
     events: {
