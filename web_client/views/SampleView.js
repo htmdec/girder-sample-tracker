@@ -24,6 +24,9 @@ var SampleView = View.extend({
         },
         'click .g-edit-access': 'editAccess',
         'click .g-delete-sample': 'destroySample',
+        'click .g-download-sample': function () {
+            this.model.download();
+        },
         'click .g-edit-sample': function () {
             event.preventDefault();
             new AddSampleDialog({

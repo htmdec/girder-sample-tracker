@@ -37,6 +37,7 @@ class Sample(Resource):
         self.route("GET", (), self.list_samples)
         self.route("DELETE", (), self.delete_samples)
         self.route("PUT", ("access",), self.bulk_update_access)
+        self.route("GET", (":id", "download"), self.download_sample)
         self.route("POST", ("download",), self.download_samples)
         self.route("GET", (":id",), self.get_sample)
         self.route("PUT", (":id",), self.update_sample)
@@ -298,6 +299,21 @@ class Sample(Resource):
             "location": location,
         }
         return SampleModel().add_event(sample, event)
+
+    @access.cookie(force=True)
+    @access.public(scope=TokenScope.DATA_READ)
+    @autoDescribeRoute(
+        Description("Download a sample").modelParam(
+            "id", "The ID of the sample", model=SampleModel, level=AccessType.READ
+        )
+    )
+    def download_sample(self, sample):
+        url = urlparse(cherrypy.request.headers["Referer"])
+        girder_base = f"{url.scheme}://{url.netloc}"
+        qr_img = SampleModel().qr_code(sample, girder_base)
+        setResponseHeader("Content-Type", "image/png")
+        setContentDisposition(f"{sample['name']}.png")
+        return bytesio_iterator(qr_img)
 
     @access.cookie(force=True)
     @access.public(scope=TokenScope.DATA_READ)
