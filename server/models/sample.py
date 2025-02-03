@@ -1,9 +1,12 @@
 import datetime
 import io
 
+import cairosvg
 import qrcode
 from girder.constants import AccessType
 from girder.models.model_base import AccessControlledModel
+from qrcode.compat.etree import ET
+from qrcode.image.svg import SvgPathFillImage
 
 
 class Sample(AccessControlledModel):
@@ -64,14 +67,30 @@ class Sample(AccessControlledModel):
     def qr_code(self, sample, url):
         buf = io.BytesIO()
         qr = qrcode.QRCode(
-            version=2,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
+            version=6,
+            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            border=10,
+            image_factory=SvgPathFillImage,
         )
         qr.add_data(f"{url}/#sample/{sample['_id']}/add")
         qr.make(fit=True)
 
         img = qr.make_image(fill_color="black", back_color="white")
-        img.save(buf, format="PNG")
+        text = ET.SubElement(
+            img._img,
+            "text",
+            {
+                "x": "50%",
+                "y": "93%",
+                "dominant-baseline": "middle",
+                "text-anchor": "middle",
+                "font-size": "5",
+                "fill": "black",
+            },
+        )
+        text.text = sample["name"]
+        cairosvg.svg2png(
+            bytestring=img.to_string(encoding="unicode"), write_to=buf, dpi=300
+        )
+        buf.seek(0)
         return buf
