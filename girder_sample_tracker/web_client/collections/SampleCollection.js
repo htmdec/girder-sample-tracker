@@ -1,6 +1,6 @@
-import Collection from 'girder/collections/Collection';
-
 import SampleModel from '../models/SampleModel';
+
+const Collection = girder.collections.Collection;
 
 var SampleCollection = Collection.extend({
     resourceName: 'sample',

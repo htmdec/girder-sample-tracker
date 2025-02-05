@@ -1,6 +1,6 @@
-import { getCurrentUser } from 'girder/auth';
-import { AccessType } from 'girder/constants';
-import AccessControlledModel from 'girder/models/AccessControlledModel';
+const { getCurrentUser } = girder.auth;
+const { AccessType } = girder.constants;
+const AccessControlledModel = girder.models.AccessControlledModel;
 
 var SampleCreationPolicyModel = AccessControlledModel.extend({
     resourceName: 'sampleCreationPolicy',

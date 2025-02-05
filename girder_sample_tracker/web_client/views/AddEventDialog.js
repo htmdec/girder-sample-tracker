@@ -1,14 +1,11 @@
-import $ from 'jquery';
-
-import router from 'girder/router';
-import View from 'girder/views/View';
-import { handleClose, handleOpen } from 'girder/dialog';
-import { restRequest } from 'girder/rest';
+const router = girder.router;
+const View = girder.views.View;
+const { handleClose, handleOpen } = girder.dialog;
+const { restRequest } = girder.rest;
 
 import AddEventDialogTemplate from '../templates/addEventDialog.pug';
-
-import 'girder/utilities/jquery/girderEnable';
-import 'girder/utilities/jquery/girderModal';
+import '@girder/core/utilities/jquery/girderEnable';
+import '@girder/core/utilities/jquery/girderModal';
 
 import 'bootstrap/js/dropdown';
 

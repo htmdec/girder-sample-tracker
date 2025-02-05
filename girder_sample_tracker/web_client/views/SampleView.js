@@ -1,14 +1,15 @@
-import QRCode from 'qrcode';
-import router from 'girder/router';
-import View from 'girder/views/View';
-import AccessWidget from 'girder/views/widgets/AccessWidget';
-import { formatDate, DATE_MINUTE } from 'girder/misc';
-import { AccessType } from 'girder/constants';
-
 import SampleTemplate from '../templates/sampleView.pug';
 import '../stylesheets/sampleView.styl';
 import AddEventDialog from './AddEventDialog';
 import AddSampleDialog from './AddSampleDialog';
+
+import QRCode from 'qrcode';
+
+const router = girder.router;
+const View = girder.views.View;
+const AccessWidget = girder.views.widgets.AccessWidget;
+const { formatDate, DATE_MINUTE } = girder.misc;
+const { AccessType } = girder.constants;
 
 const QRparams = {
   'errorCorrectionLevel': 'H',

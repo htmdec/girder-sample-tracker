@@ -300,8 +300,7 @@ class Sample(Resource):
         }
         return SampleModel().add_event(sample, event)
 
-    @access.cookie(force=True)
-    @access.public(scope=TokenScope.DATA_READ)
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
         Description("Download a sample").modelParam(
             "id", "The ID of the sample", model=SampleModel, level=AccessType.READ
@@ -315,8 +314,7 @@ class Sample(Resource):
         setContentDisposition(f"{sample['name']}.png")
         return bytesio_iterator(qr_img)
 
-    @access.cookie(force=True)
-    @access.public(scope=TokenScope.DATA_READ)
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
         Description("Download QR codes for a list of samples").jsonParam(
             "ids",
