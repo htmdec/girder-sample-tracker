@@ -4,10 +4,7 @@ const { handleClose, handleOpen } = girder.dialog;
 const { restRequest } = girder.rest;
 
 import AddEventDialogTemplate from '../templates/addEventDialog.pug';
-import '@girder/core/utilities/jquery/girderEnable';
 import '@girder/core/utilities/jquery/girderModal';
-
-import 'bootstrap/js/dropdown';
 
 var AddEventDialog = View.extend({
     events: {
