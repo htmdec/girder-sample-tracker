@@ -19,17 +19,6 @@ from girder.utility.progress import ProgressContext
 from ..models.sample import Sample as SampleModel
 
 
-def bytesio_iterator(bio, chunk_size=4096):
-    """
-    Iterates over the content of a BytesIO object in chunks.
-    """
-    while True:
-        chunk = bio.read(chunk_size)
-        if not chunk:
-            break
-        yield chunk
-
-
 class Sample(Resource):
     def __init__(self):
         super(Sample, self).__init__()
@@ -312,7 +301,9 @@ class Sample(Resource):
         qr_img = SampleModel().qr_code(sample, girder_base)
         setResponseHeader("Content-Type", "image/png")
         setContentDisposition(f"{sample['name']}.png")
-        return bytesio_iterator(qr_img)
+        def stream():
+            yield from qr_img
+        return stream
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
