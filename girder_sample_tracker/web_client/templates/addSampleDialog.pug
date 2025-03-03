@@ -10,6 +10,12 @@
       .modal-body
         .form-group
           label(for="name") Name
+          p.
+            If you're creating a batch of samples use <b>{number}</b> placeholder in the name field to indicate where
+            the number should be inserted. You can pad the number with leading zeros by using <b>{number:02d}</b>, where
+            02d indicates padding with at most 2 zeros.
+            If you don't provide a placeholder in the name field, the name will be used as a common stem for all
+            samples, and each sample will be suffixed with a 0-padded consecutive number from 1 to N.
           input#name.form-control(type="text", name="name", required)
         .form-group
           label(for="comment") Description
@@ -31,9 +37,11 @@
               with a 0-padded consecutive number from 1 to N.
             input#batchSize.form-control(type="number", name="batchSize")
           .form-group
+            label(for="batchTemplate") Batch Template (optional)
+          .form-group
             .access-widget-container
+          .g-validation-failed-message
       .modal-footer
         a.btn.btn-default(data-dismiss="modal") Close
         button#g-sample-btn.btn.btn-primary(type="submit") Save
 
-.g-validation-failed-meesage

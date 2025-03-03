@@ -19,17 +19,6 @@ from girder.utility.progress import ProgressContext
 from ..models.sample import Sample as SampleModel
 
 
-def bytesio_iterator(bio, chunk_size=4096):
-    """
-    Iterates over the content of a BytesIO object in chunks.
-    """
-    while True:
-        chunk = bio.read(chunk_size)
-        if not chunk:
-            break
-        yield chunk
-
-
 class Sample(Resource):
     def __init__(self):
         super(Sample, self).__init__()
@@ -130,15 +119,25 @@ class Sample(Resource):
             raise ValidationException(
                 "Batch size must be at least 1, but no more than 64."
             )
+
         if not eventTypes:
             eventTypes = []
         user = self.getCurrentUser()
         samples = []
         if batchSize > 1:
-            format_str = "{name}{i:0" + str(math.ceil(math.log10(batchSize))) + "d}"
+            if "{number" not in name:
+                name = name + "{number:0" + str(math.ceil(math.log10(batchSize))) + "d}"
+
+            try:
+                name.format(number=1)
+            except KeyError:
+                raise ValidationException(
+                    "Name must contain a '{number}' placeholder for batch creation."
+                )
+
             for i in range(batchSize):
                 sample = SampleModel().create(
-                    format_str.format(name=name, i=i + 1),
+                    name.format(number=i + 1),
                     user,
                     description=description,
                     eventTypes=eventTypes,
@@ -312,7 +311,9 @@ class Sample(Resource):
         qr_img = SampleModel().qr_code(sample, girder_base)
         setResponseHeader("Content-Type", "image/png")
         setContentDisposition(f"{sample['name']}.png")
-        return bytesio_iterator(qr_img)
+        def stream():
+            yield from qr_img
+        return stream
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
