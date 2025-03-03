@@ -119,15 +119,25 @@ class Sample(Resource):
             raise ValidationException(
                 "Batch size must be at least 1, but no more than 64."
             )
+
         if not eventTypes:
             eventTypes = []
         user = self.getCurrentUser()
         samples = []
         if batchSize > 1:
-            format_str = "{name}{i:0" + str(math.ceil(math.log10(batchSize))) + "d}"
+            if "{number" not in name:
+                name = name + "{number:0" + str(math.ceil(math.log10(batchSize))) + "d}"
+
+            try:
+                name.format(number=1)
+            except KeyError:
+                raise ValidationException(
+                    "Name must contain a '{number}' placeholder for batch creation."
+                )
+
             for i in range(batchSize):
                 sample = SampleModel().create(
-                    format_str.format(name=name, i=i + 1),
+                    name.format(number=i + 1),
                     user,
                     description=description,
                     eventTypes=eventTypes,

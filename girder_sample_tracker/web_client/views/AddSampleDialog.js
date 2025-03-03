@@ -38,6 +38,9 @@ var AddSampleDialog = View.extend({
             } else {
                 const sample = new SampleModel(params).on('g:saved', function () {
                     router.navigate('sample/' + sample.responseJSON._id, {trigger: true});
+                }, this).on('g:error', function (err) {
+                    this.$('.g-validation-failed-message').text(err.responseJSON.message);
+                    this.$('button#g-add-sample-btn').girderEnable(true);
                 }, this).save();
             }
         }
