@@ -10,32 +10,33 @@
       .modal-body
         .form-group
           label(for="name") Name
-          p.
-            If you're creating a batch of samples use <b>{number}</b> placeholder in the name field to indicate where
-            the number should be inserted. You can pad the number with leading zeros by using <b>{number:02d}</b>, where
-            02d indicates padding with at most 2 zeros.
-            If you don't provide a placeholder in the name field, the name will be used as a common stem for all
-            samples, and each sample will be suffixed with a 0-padded consecutive number from 1 to N.
           input#name.form-control(type="text", name="name", required)
+          p.
+            If creating a batch of samples, use <i>{number}</i> placeholder in the name field 
+            to indicate where the number should be inserted. You can pad the number with leading 
+            zeros using <i>{number:02d}</i>, where <i>02d</i> indicates padding with at most 2 zeros.
+            Suppose you don't provide a placeholder in the name field. In that case, the name will be 
+            used as a stem for all samples, and each sample will be suffixed with a 0-padded 
+            consecutive number from 1 to N.
         .form-group
           label(for="comment") Description
           input#description.form-control(type="text", name="description")
         .form-group
           i.icon-tags
           label(for="eventTypes") Event Types
+          input#eventTypes.form-control(type="text", name="eventTypes", data-role="tagsinput")
           p.
             Defined allowed event types for this sample.
             You can add multiple event types by separating them with commas.
             For example: "shipped, received, forging, XRD".
             If left empty, all event types are allowed.
-          input#eventTypes.form-control(type="text", name="eventTypes", data-role="tagsinput")
         if isNew
           .form-group
             label(for="batchSize") Batch Size (optional)
+            input#batchSize.form-control(type="number", name="batchSize")
             p.
               If provided, N samples will be created. <b>Name</b> field will be used as a common stem for all samples, and each sample will be suffixed
               with a 0-padded consecutive number from 1 to N.
-            input#batchSize.form-control(type="number", name="batchSize")
           .form-group
             .access-widget-container
           .g-validation-failed-message
