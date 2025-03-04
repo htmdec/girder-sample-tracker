@@ -3,6 +3,7 @@ import math
 from urllib.parse import urlparse
 
 import cherrypy
+import dateutil.parser
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import (
@@ -13,6 +14,7 @@ from girder.api.rest import (
 )
 from girder.constants import AccessType, SortDir, TokenScope
 from girder.exceptions import RestException, ValidationException
+from girder.models.user import User
 from girder.utility import ziputil
 from girder.utility.progress import ProgressContext
 
@@ -35,6 +37,7 @@ class Sample(Resource):
         self.route("GET", (":id", "access"), self.get_access)
         self.route("PUT", (":id", "access"), self.update_access)
         self.route("POST", (":id", "event"), self.create_event)
+        self.route("DELETE", (":id", "event"), self.delete_event)
 
     @access.public
     @autoDescribeRoute(
@@ -299,6 +302,26 @@ class Sample(Resource):
         }
         return SampleModel().add_event(sample, event)
 
+    @access.user
+    @autoDescribeRoute(
+        Description("Delete an event for a sample")
+        .modelParam(
+            "id", "The ID of the sample", model=SampleModel, level=AccessType.ADMIN
+        )
+        .jsonParam("event", "Event to remove", required=True, requireObject=True)
+    )
+    @filtermodel(model="sample", plugin="sample_tracker")
+    def delete_event(self, sample, event):
+        creator = User().load(event["creator"], force=True)
+        processed_event = {
+            "created": dateutil.parser.parse(event.get("created")),
+            "creator": creator["_id"],
+            "eventType": event.get("eventType"),
+        }
+        return SampleModel().remove_event(
+            sample, processed_event, user=self.getCurrentUser()
+        )
+
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
         Description("Download a sample").modelParam(
@@ -311,8 +334,10 @@ class Sample(Resource):
         qr_img = SampleModel().qr_code(sample, girder_base)
         setResponseHeader("Content-Type", "image/png")
         setContentDisposition(f"{sample['name']}.png")
+
         def stream():
             yield from qr_img
+
         return stream
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)

@@ -10,6 +10,7 @@ const View = girder.views.View;
 const AccessWidget = girder.views.widgets.AccessWidget;
 const { formatDate, DATE_MINUTE } = girder.misc;
 const { AccessType } = girder.constants;
+const { restRequest } = girder.rest;
 
 const QRparams = {
   'errorCorrectionLevel': 'H',
@@ -22,6 +23,32 @@ var SampleView = View.extend({
     events: {
         'click .g-new-event': function (event) {
             this.addEventDialog();
+        },
+        'click .g-edit-event': function (event) {
+            event.preventDefault();
+            new AddEventDialog({
+                el: $('#g-dialog-container'),
+                parentView: this
+            }).render();
+        },
+        'click .g-delete-event': function (event) {
+            event.preventDefault();
+            const index = parseInt(event.currentTarget.id.substr(13));
+            // remove the event from the model
+            const sampleEvent = this.model.attributes.events[index];
+            const view = this;
+            restRequest({
+                url: 'sample/' + this.model.id + '/event',
+                type: 'DELETE',
+                data: {
+                    'event': JSON.stringify(sampleEvent)
+                }
+            }).done(function () {
+                view.model.attributes.events.splice(index, 1);
+                view.render();
+            }).fail((err) => {
+                this.trigger('g:error', err);
+            });
         },
         'click .g-edit-access': 'editAccess',
         'click .g-delete-sample': 'destroySample',

@@ -64,6 +64,15 @@ class Sample(AccessControlledModel):
 
         return sample
 
+    def remove_event(self, sample, event, user=None):
+        self.collection.update_one(
+            {
+                "_id": sample["_id"],
+            },
+            {"$pull": {"events": {**event}}},
+        )
+        return self.load(sample["_id"], user=user)
+
     def qr_code(self, sample, url):
         buf = io.BytesIO()
         qr = qrcode.QRCode(
