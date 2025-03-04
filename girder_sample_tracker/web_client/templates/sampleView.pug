@@ -33,8 +33,9 @@
         th Creator
         th Comment
         th Location
+        th Actions
     tbody
-      each event in events
+      each event, index in events
         tr
           td= event.eventType
           td= formatDate(event.created, DATE_MINUTE)
@@ -45,3 +46,7 @@
               a(href=`https://www.openstreetmap.org/#map=18/${event.location.replace(',','/')}`)= event.location
           else
             td= event.location
+          td
+            if (level >= AccessType.WRITE)
+              button.g-delete-event.btn.btn-sm.btn-danger(title="Delete event" id=`delete-event-${index}`)
+                i.icon-trash

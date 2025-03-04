@@ -52,7 +52,7 @@ var AddEventDialog = View.extend({
     render: function () {
         this.$el.html(AddEventDialogTemplate({
             sample: this.sample,
-            tagsDropdown: this.eventTypes !== undefined ? this.eventTypes.length > 0 : false
+            tagsDropdown: (this.eventTypes !== undefined && this.eventTypes !== null) ? this.eventTypes.length > 0 : false
         })).girderModal(this)
             .on('shown.bs.modal', () => {
                 this.geoLocation();
