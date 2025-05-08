@@ -41,14 +41,21 @@ class Sample(Resource):
 
     @access.public
     @autoDescribeRoute(
-        Description("List samples").pagingParams(
+        Description("List samples")
+        .param("query", "A regular expression to filter sample names", required=False)
+        .pagingParams(
             defaultSort="name", defaultSortDir=SortDir.DESCENDING
         )
     )
     @filtermodel(model="sample", plugin="sample_tracker")
-    def list_samples(self, limit, offset, sort):
+    def list_samples(self, query, limit, offset, sort):
+        if query:
+            query = {"name": {"$regex": query, "$options": "i"}}
+        else:
+            query = {}
+
         return SampleModel().findWithPermissions(
-            query={},
+            query=query,
             offset=offset,
             limit=limit,
             sort=sort,
