@@ -1,8 +1,10 @@
-import os
+from pathlib import Path
+
 from girder.plugin import GirderPlugin, registerPluginStaticContent
 from girder.utility.model_importer import ModelImporter
-from .rest.sample import Sample
+
 from .models.sample import Sample as SampleModel
+from .rest.sample import Sample
 
 
 class SampleTrackerPlugin(GirderPlugin):
@@ -15,6 +17,6 @@ class SampleTrackerPlugin(GirderPlugin):
             plugin="sample_tracker",
             css=["/style.css"],
             js=["/girder-plugin-sample-tracker.umd.cjs"],
-            staticDir=os.path.join(os.path.dirname(__file__), "web_client", "dist"),
+            staticDir=Path(__file__).parent / "web_client" / "dist",
             tree=info["serverRoot"],
         )
