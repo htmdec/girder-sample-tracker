@@ -97,7 +97,7 @@ class Sample(Resource):
             sample["description"] = description
         if eventTypes != sample.get("eventTypes", []):
             sample["eventTypes"] = eventTypes
-        sample["updated"] = datetime.datetime.utcnow()
+        sample["updated"] = datetime.datetime.now(datetime.UTC)
         return SampleModel().save(sample)
 
     @access.user
@@ -301,7 +301,7 @@ class Sample(Resource):
         user = self.getCurrentUser()
         event = {
             "comment": comment,
-            "created": datetime.datetime.utcnow(),
+            "created": datetime.datetime.now(datetime.UTC),
             "creator": user["_id"],
             "creatorName": f"{user['firstName']} {user['lastName']}",
             "eventType": eventType,

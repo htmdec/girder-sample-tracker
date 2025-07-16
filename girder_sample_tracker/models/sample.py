@@ -34,7 +34,7 @@ class Sample(AccessControlledModel):
     def create(
         self, name, creator, description=None, eventTypes=None, access=None, save=True
     ):
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.UTC)
 
         sample = {
             "name": name,
