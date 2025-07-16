@@ -1,4 +1,6 @@
+import csv
 import datetime
+import io
 import math
 from urllib.parse import urlparse
 
@@ -367,15 +369,29 @@ class Sample(Resource):
 
         def stream():
             _zip = ziputil.ZipGenerator()
+            csv_data = io.StringIO()
+            csv_writer = csv.writer(csv_data)
+            csv_writer.writerow(["Sample ID", "Sample Name", "Add Event URL"])
             for sample_id in ids:
                 doc = SampleModel().load(sample_id, user=user, level=AccessType.READ)
                 qr_img = SampleModel().qr_code(doc, girder_base)
+                csv_writer.writerow(
+                    [
+                        str(doc["_id"]),
+                        doc["name"],
+                        f"{girder_base}/#sample/{doc['_id']}/add"
+                    ]
+                )
 
                 def qr_stream():
                     yield qr_img.getvalue()
 
-                for data in _zip.addFile(qr_stream, f"{doc['name']}.png"):
-                    yield data
+                yield from _zip.addFile(qr_stream, f"{doc['name']}.png")
+
+            def csv_stream():
+                csv_data.seek(0)
+                yield csv_data.getvalue()
+            yield from _zip.addFile(csv_stream, "samples.csv")
             yield _zip.footer()
 
         return stream
