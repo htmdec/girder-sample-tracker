@@ -76,7 +76,7 @@ class Sample(AccessControlledModel):
     def qr_code(self, sample, url):
         buf = io.BytesIO()
         qr = qrcode.QRCode(
-            version=6,
+            version=8,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
             border=10,
             image_factory=SvgPathFillImage,
