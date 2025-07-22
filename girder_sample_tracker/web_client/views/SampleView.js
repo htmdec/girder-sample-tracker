@@ -29,7 +29,7 @@ var SampleView = View.extend({
             new AddEventDialog({
                 el: $('#g-dialog-container'),
                 parentView: this
-            }).render();
+            });
         },
         'click .g-delete-event': function (event) {
             event.preventDefault();
@@ -60,7 +60,7 @@ var SampleView = View.extend({
             new AddSampleDialog({
                 el: $('#g-dialog-container'),
                 parentView: this
-            }).render();
+            });
         }
     },
 
@@ -98,7 +98,7 @@ var SampleView = View.extend({
         new AddEventDialog({
             el: $('#g-dialog-container'),
             parentView: this
-        }).render();
+        });
     },
 
     editAccess: function () {

@@ -4,6 +4,7 @@ import _ from 'underscore';
 import SampleCollection from '../collections/SampleCollection';
 import SampleListTemplate from '../templates/sampleList.pug';
 import CheckedMenuWidget from './CheckedMenuWidget';
+import AddEventDialog from './AddEventDialog';
 import AddSampleDialog from './AddSampleDialog';
 import AccessBatchDialog from './AccessBatchDialog';
 
@@ -15,6 +16,7 @@ const PaginateWidget = girder.views.widgets.PaginateWidget;
 const { getCurrentUser } = girder.auth;
 const { AccessType } = girder.constants;
 const { confirm } = girder.dialog;
+const events = girder.events;
 const { formatDate, DATE_DAY } = girder.misc;
 const { restRequest, getApiRoot } = girder.rest;
 
@@ -28,6 +30,7 @@ var SampleListView = View.extend({
                 parentView: this
             }).render();
         },
+        'click .g-add-event': 'addEventChecked',
         'click .g-view-sample': function (event) {
             const sampleId = this.collection.get($(event.currentTarget).attr('cid')).id;
             router.navigate(`sample/${sampleId}`, {trigger: true});
@@ -172,6 +175,34 @@ var SampleListView = View.extend({
             parentView: this,
             samples: samples
         }, this).render();
+    },
+
+    addEventChecked: function () {
+        new AddEventDialog({
+            el: $('#g-dialog-container'),
+            parentView: this
+        }).on('g:submit', (params) => {
+            const data = Object.fromEntries(params);
+            data.ids = JSON.stringify(this._getCheckedSampleIds());
+            restRequest({
+                type: 'POST',
+                url: 'sample/event',
+                data: data
+            }).done((resp) => {
+                if (resp.failed > 0) {
+                    events.trigger('g:alert', {
+                        icon: 'cancel',
+                        text: `${resp.failed} sample(s) failed to receive the event.`,
+                        type: 'warning'
+                    });
+                }
+                events.trigger('g:alert', {
+                    icon: 'ok',
+                    text: `${resp.processed} sample(s) received the event.`,
+                    type: 'success'
+                });
+            });
+        });
     },
 
     downloadChecked: function () {
