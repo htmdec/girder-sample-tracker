@@ -14,7 +14,7 @@ const { restRequest } = girder.rest;
 
 const QRparams = {
   'errorCorrectionLevel': 'H',
-  'version': 6,
+  'version': 8,
   'mode': 'alphanumeric',
 }
 
@@ -87,7 +87,7 @@ var SampleView = View.extend({
             DATE_MINUTE: DATE_MINUTE
         }));
         const addEventUrl = `${window.location.origin}/#sample/${this.model.id}/add`;
-        QRCode.toCanvas(this.$('#g-sample-qr')[0], addEventUrl.toUpperCase(), QRparams);
+        QRCode.toCanvas(this.$('#g-sample-qr')[0], addEventUrl, QRparams);
         if (this.addEvent) {
             this.addEventDialog();
         }
