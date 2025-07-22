@@ -41,11 +41,11 @@
           td= formatDate(event.created, DATE_MINUTE)
           td= event.creatorName
           td= event.comment
-          if (event.location.includes(','))
+          if (event.location && event.location.includes(','))
             td
               a(href=`https://www.openstreetmap.org/#map=18/${event.location.replace(',','/')}`)= event.location
           else
-            td= event.location
+            td= event.location ? event.location : ''
           td
             if (level >= AccessType.WRITE)
               button.g-delete-event.btn.btn-sm.btn-danger(title="Delete event" id=`delete-event-${index}`)

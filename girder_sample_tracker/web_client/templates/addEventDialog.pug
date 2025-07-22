@@ -3,13 +3,13 @@
     form#g-event-form.modal-form(role="form")
       .modal-header
         button.close(type="button", data-dismiss="modal", aria-hidden="true") &times;
-        h4.modal-title Add an event for #{sample.get("name")}
+        h4.modal-title Add an event for #{name}
       .modal-body
         .form-group
           label(for="eventType") Event Type
           if (tagsDropdown)
             select#eventType.form-control(name="eventType")
-              each eventType in sample.get("eventTypes")
+              each eventType in eventTypes
                 option(value=eventType) #{eventType}
           else
             input#eventType.form-control(type="text", name="eventType")

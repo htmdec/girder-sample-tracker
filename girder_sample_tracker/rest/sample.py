@@ -35,6 +35,7 @@ class Sample(Resource):
         self.route("GET", (":id",), self.get_sample)
         self.route("PUT", (":id",), self.update_sample)
         self.route("POST", (), self.create_sample)
+        self.route("POST", ("event",), self.create_multisample_event)
         self.route("DELETE", (":id",), self.delete_sample)
         self.route("GET", (":id", "access"), self.get_access)
         self.route("PUT", (":id", "access"), self.update_access)
@@ -45,9 +46,7 @@ class Sample(Resource):
     @autoDescribeRoute(
         Description("List samples")
         .param("query", "A regular expression to filter sample names", required=False)
-        .pagingParams(
-            defaultSort="name", defaultSortDir=SortDir.DESCENDING
-        )
+        .pagingParams(defaultSort="name", defaultSortDir=SortDir.DESCENDING)
     )
     @filtermodel(model="sample", plugin="sample_tracker")
     def list_samples(self, query, limit, offset, sort):
@@ -290,6 +289,47 @@ class Sample(Resource):
 
     @access.user
     @autoDescribeRoute(
+        Description("Create an event for multiple samples")
+        .jsonParam(
+            "ids", "The IDs of the samples to create an event for", requireArray=True
+        )
+        .param("eventType", "The type of the event", required=True)
+        .param("location", "The location of the event", required=False)
+        .param("comment", "Extra comment about the event", required=False)
+    )
+    def create_multisample_event(self, ids, eventType, location, comment):
+        user = self.getCurrentUser()
+        if not ids:
+            raise ValidationException("At least one sample ID must be provided.")
+
+        event = {
+            "comment": comment,
+            "created": datetime.datetime.now(datetime.UTC),
+            "creator": user["_id"],
+            "creatorName": f"{user['firstName']} {user['lastName']}",
+            "eventType": eventType,
+            "location": location,
+        }
+
+        samples = []
+        failed = 0
+        for sample_id in ids:
+            try:
+                sample = SampleModel().load(
+                    sample_id, user=user, level=AccessType.WRITE, exc=True
+                )
+                eventTypes = sample.get("eventTypes", [])
+                if eventTypes and eventType not in eventTypes:
+                    raise ValidationException(
+                        f"Event type '{eventType}' is not allowed for sample {sample_id}."
+                    )
+                samples.append(SampleModel().add_event(sample, event))
+            except Exception:
+                failed += 1
+        return {"processed": len(samples), "failed": failed}
+
+    @access.user
+    @autoDescribeRoute(
         Description("Create an event for a sample")
         .modelParam(
             "id", "The ID of the sample", model=SampleModel, level=AccessType.WRITE
@@ -379,7 +419,7 @@ class Sample(Resource):
                     [
                         str(doc["_id"]),
                         doc["name"],
-                        f"{girder_base}/#sample/{doc['_id']}/add"
+                        f"{girder_base}/#sample/{doc['_id']}/add",
                     ]
                 )
 
@@ -391,6 +431,7 @@ class Sample(Resource):
             def csv_stream():
                 csv_data.seek(0)
                 yield csv_data.getvalue()
+
             yield from _zip.addFile(csv_stream, "samples.csv")
             yield _zip.footer()
 
