@@ -3,7 +3,6 @@ import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import istanbul from 'vite-plugin-istanbul';
 import { compileClient } from 'pug';
-import inject from '@rollup/plugin-inject';
 
 function pugPlugin() {
   return {
@@ -22,11 +21,6 @@ function pugPlugin() {
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    inject({
-      $: "jquery",
-      jQuery: "jquery",
-      "window.jQuery": "jquery"
-    }),
     pugPlugin(),
     istanbul({
       include: 'src/*',
@@ -44,6 +38,23 @@ export default defineConfig({
       entry: resolve(__dirname, 'main.js'),
       name: 'GirderPluginSampleTracker',
       fileName: 'girder-plugin-sample-tracker',
+    },
+    rollupOptions: {
+      output: {
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+            return 'style.css';
+          }
+          return '[name].[ext]';
+        },
+      },
+      transform: {
+        inject: {
+          $: 'jquery',
+          jQuery: 'jquery',
+          'window.jQuery': 'jquery',
+        },
+      },
     },
   },
 });

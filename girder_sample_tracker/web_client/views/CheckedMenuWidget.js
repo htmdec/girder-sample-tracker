@@ -1,7 +1,5 @@
 import CheckedActionsMenuTemplate from '../templates/checkedActionsMenu.pug';
 
-import '@girder/core/utilities/jquery/girderEnable';
-
 const HierarchyWidget = girder.views.widgets.HierarchyWidget;
 const View = girder.views.View;
 const { AccessType } = girder.constants;
