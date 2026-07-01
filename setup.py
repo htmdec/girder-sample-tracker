@@ -9,7 +9,7 @@ setup(
     name="girder-sample-tracker",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version="2.0.5",
+    version="2.0.6",
     description="Girder Plugin adding a simple tracker for material samples",
     packages=find_packages(),
     include_package_data=True,
@@ -24,7 +24,7 @@ setup(
     ],
     python_requires=">=3.10",
     setup_requires=["setuptools-git"],
-    install_requires=["girder>=5.0.0a5.dev0", "qrcode[pil]", "cairosvg"],
+    install_requires=["girder>=5.0.0", "qrcode[pil]", "cairosvg"],
     entry_points={"girder.plugin": ["sample_tracker = girder_sample_tracker:SampleTrackerPlugin"]},
     zip_safe=False,
 )
