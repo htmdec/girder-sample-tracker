@@ -73,7 +73,7 @@ class Sample(AccessControlledModel):
         )
         return self.load(sample["_id"], user=user)
 
-    def qr_code(self, sample, url):
+    def qr_code(self, sample, url, label=None):
         buf = io.BytesIO()
         qr = qrcode.QRCode(
             version=8,
@@ -97,7 +97,9 @@ class Sample(AccessControlledModel):
                 "fill": "black",
             },
         )
-        text.text = sample["name"]
+        if label is None:
+            label = sample["name"]
+        text.text = label
         cairosvg.svg2png(
             bytestring=img.to_string(encoding="unicode"), write_to=buf, dpi=300
         )

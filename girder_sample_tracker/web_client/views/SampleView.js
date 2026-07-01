@@ -55,12 +55,12 @@ var SampleView = View.extend({
         'click .g-download-sample': function () {
             this.model.download();
         },
-        'click .g-edit-sample': function () {
+        'click .g-edit-sample': function (event) {
             event.preventDefault();
             new AddSampleDialog({
                 el: $('#g-dialog-container'),
                 parentView: this
-            });
+            }).render();
         }
     },
 

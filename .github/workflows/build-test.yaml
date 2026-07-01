@@ -19,7 +19,7 @@ jobs:
         python-version: ["3.12"]
     services:
       mongodb:
-        image: mongo:4.0
+        image: mongo:4.2
         ports:
           - 27017:27017
     steps:
@@ -30,7 +30,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 18
+        node-version: 22
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Install dependencies

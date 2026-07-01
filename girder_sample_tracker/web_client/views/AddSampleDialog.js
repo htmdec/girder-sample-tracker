@@ -8,7 +8,6 @@ const View = girder.views.View;
 const AccessWidget = girder.views.widgets.AccessWidget;
 const { handleClose, handleOpen } = girder.dialog;
 
-import '@girder/core/utilities/jquery/girderModal';
 import 'bootstrap-tagsinput';
 import 'bootstrap-tagsinput/dist/bootstrap-tagsinput.css';
 
