@@ -15,7 +15,7 @@ from girder.api.rest import (
     setResponseHeader,
 )
 from girder.constants import AccessType, SortDir, TokenScope
-from girder.exceptions import RestException, ValidationException
+from girder.exceptions import AccessException, RestException, ValidationException
 from girder.models.user import User
 from girder.utility import ziputil
 from girder.utility.progress import ProgressContext
@@ -403,8 +403,9 @@ class Sample(Resource):
         )
 
         samples = []
-        failed = 0
+        failures = []
         for sample_id in ids:
+            sample = None
             try:
                 sample = SampleModel().load(
                     sample_id, user=user, level=AccessType.WRITE, exc=True
@@ -415,9 +416,27 @@ class Sample(Resource):
                         f"Event type '{eventType}' is not allowed for sample {sample_id}."
                     )
                 samples.append(SampleModel().add_event(sample, event))
-            except Exception:  # noqa: BLE001 - one bad sample must not abort the batch
-                failed += 1
-        return {"processed": len(samples), "failed": failed}
+            except (ValidationException, AccessException, RestException) as exc:
+                # One unwritable sample must not abort the batch, but the user
+                # scanning 30 tubes needs to know which ones to redo. Anything
+                # outside these three is a bug here, not bad input, so it
+                # propagates.
+                failures.append(
+                    {
+                        "id": str(sample_id),
+                        # None when the load itself failed: an id we cannot
+                        # read is an id whose name we should not report.
+                        "name": sample["name"] if sample else None,
+                        "reason": str(exc),
+                    }
+                )
+        return {
+            "processed": len(samples),
+            # Still an integer, because web_client/views/SampleListView.js
+            # tests `resp.failed > 0` and an array there compares as NaN.
+            "failed": len(failures),
+            "failures": failures,
+        }
 
     @access.user
     @autoDescribeRoute(

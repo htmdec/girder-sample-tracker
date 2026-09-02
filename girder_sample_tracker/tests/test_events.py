@@ -100,7 +100,7 @@ class TestCreateMultisampleEvent:
         )
 
         assertStatusOk(resp)
-        assert resp.json == {"processed": 3, "failed": 0}
+        assert resp.json == {"processed": 3, "failed": 0, "failures": []}
         for sample in samples:
             reloaded = SampleModel().load(sample["_id"], force=True)
             assert len(reloaded["events"]) == 1
@@ -125,7 +125,8 @@ class TestCreateMultisampleEvent:
         resp = self._post(server, user, [s["_id"] for s in samples], "not-allowed")
 
         assertStatusOk(resp)
-        assert resp.json == {"processed": 0, "failed": 3}
+        assert resp.json["processed"] == 0
+        assert resp.json["failed"] == 3
         for sample in samples:
             assert SampleModel().load(sample["_id"], force=True)["events"] == []
 
@@ -134,14 +135,15 @@ class TestCreateMultisampleEvent:
         resp = self._post(server, user, [sample["_id"]], "anything")
 
         assertStatusOk(resp)
-        assert resp.json == {"processed": 1, "failed": 0}
+        assert resp.json == {"processed": 1, "failed": 0, "failures": []}
 
     def test_one_bad_sample_does_not_abort_the_batch(self, server, user, samples):
         ids = [s["_id"] for s in samples] + ["000000000000000000000000"]
         resp = self._post(server, user, ids, "created")
 
         assertStatusOk(resp)
-        assert resp.json == {"processed": 3, "failed": 1}
+        assert resp.json["processed"] == 3
+        assert resp.json["failed"] == 1
 
     def test_inaccessible_samples_are_counted_as_failures(
         self, server, user, user2, samples
@@ -150,7 +152,8 @@ class TestCreateMultisampleEvent:
         resp = self._post(server, user2, [s["_id"] for s in samples], "created")
 
         assertStatusOk(resp)
-        assert resp.json == {"processed": 1, "failed": 2}
+        assert resp.json["processed"] == 1
+        assert resp.json["failed"] == 2
 
     def test_requires_authentication(self, server, samples):
         resp = server.request(
@@ -432,3 +435,75 @@ class TestEventCoordinates:
         assertStatus(resp, 400)
         for sample in samples:
             assert SampleModel().load(sample["_id"], force=True)["events"] == []
+
+
+@pytest.mark.plugin("sample_tracker")
+class TestMultisampleFailureDetail:
+    """"3 failed" out of 30 scanned tubes is not actionable on its own."""
+
+    def test_forbidden_samples_are_named_in_failures(
+        self, server, user, user2, samples
+    ):
+        SampleModel().setUserAccess(samples[0], user2, AccessType.WRITE, save=True)
+        resp = add_multisample_event(
+            server, user2, [s["_id"] for s in samples], "created"
+        )
+
+        assertStatusOk(resp)
+        assert resp.json["processed"] == 1
+        assert resp.json["failed"] == 2
+        assert isinstance(resp.json["failed"], int)
+        assert [f["id"] for f in resp.json["failures"]] == [
+            str(s["_id"]) for s in samples[1:]
+        ]
+        for failure in resp.json["failures"]:
+            # The name of a sample we may not read is not ours to report.
+            assert failure["name"] is None
+            assert failure["reason"]
+
+    def test_missing_ids_are_named_in_failures(self, server, user, samples):
+        missing = "000000000000000000000000"
+        resp = add_multisample_event(
+            server, user, [samples[0]["_id"], missing], "created"
+        )
+
+        assertStatusOk(resp)
+        assert resp.json["processed"] == 1
+        assert resp.json["failures"] == [
+            {"id": missing, "name": None, "reason": f"No such sample: {missing}"}
+        ]
+
+    def test_malformed_ids_are_named_in_failures(self, server, user, samples):
+        resp = add_multisample_event(
+            server, user, [samples[0]["_id"], "not-an-id"], "created"
+        )
+
+        assertStatusOk(resp)
+        assert resp.json["processed"] == 1
+        assert resp.json["failed"] == 1
+        assert resp.json["failures"][0]["id"] == "not-an-id"
+        assert "ObjectId" in resp.json["failures"][0]["reason"]
+
+    def test_disallowed_event_type_reports_the_sample_name(
+        self, server, user, samples
+    ):
+        resp = add_multisample_event(
+            server, user, [s["_id"] for s in samples], "not-allowed"
+        )
+
+        assertStatusOk(resp)
+        assert resp.json["failed"] == 3
+        for failure, sample in zip(resp.json["failures"], samples, strict=True):
+            assert failure["id"] == str(sample["_id"])
+            assert failure["name"] == sample["name"]
+            assert "not-allowed" in failure["reason"]
+
+    def test_reasons_do_not_carry_a_traceback(self, server, user, samples):
+        resp = add_multisample_event(
+            server, user, [s["_id"] for s in samples], "not-allowed"
+        )
+
+        assertStatusOk(resp)
+        for failure in resp.json["failures"]:
+            assert "Traceback" not in failure["reason"]
+            assert "girder_sample_tracker" not in failure["reason"]
