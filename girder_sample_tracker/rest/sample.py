@@ -16,10 +16,13 @@ from girder.api.rest import (
 )
 from girder.constants import AccessType, SortDir, TokenScope
 from girder.exceptions import AccessException, RestException, ValidationException
+from girder.models.setting import Setting
 from girder.models.user import User
+from girder.settings import SettingKey
 from girder.utility import ziputil
 from girder.utility.progress import ProgressContext
 
+from ..models.sample import QR_PAYLOADS
 from ..models.sample import Sample as SampleModel
 
 CLIENT_EVENT_ID_DESC = (
@@ -27,6 +30,40 @@ CLIENT_EVENT_ID_DESC = (
     "sample twice records the event once, so a client may safely retry a "
     "request whose response it never saw."
 )
+
+
+PAYLOAD_DESC = (
+    "What the QR code encodes: 'url' links to the sample's add-event page, "
+    "'igsn' is the sample's identifier on its own, for tags too small to "
+    "carry a URL."
+)
+
+
+def base_url_for(payload):
+    """Where this Girder answers, for building a link into its web client.
+
+    The Referer of the browser that asked, so a label points back at the host
+    the person is actually using, falling back to the configured server root
+    for a caller that sends no Referer at all -- curl, a script, a native
+    client, some proxies.
+
+    None when neither is known, which is only fatal for a payload that needs a
+    URL: an 'igsn' label does not, though the batch CSV still reports the
+    add-event URL when one can be worked out.
+    """
+    referer = urlparse(cherrypy.request.headers.get("Referer") or "")
+    if referer.scheme and referer.netloc:
+        return f"{referer.scheme}://{referer.netloc}"
+
+    server_root = (Setting().get(SettingKey.SERVER_ROOT) or "").strip().rstrip("/")
+    if server_root:
+        return server_root
+    if payload == "url":
+        raise RestException(
+            "Cannot build the label's URL: the request carried no Referer "
+            "header and the core.server_root setting is empty."
+        )
+    return None
 
 
 def coordinates(latitude, longitude, accuracy):
@@ -554,14 +591,20 @@ class Sample(Resource):
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
-        Description("Download a sample").modelParam(
+        Description("Download a sample's QR code")
+        .modelParam(
             "id", "The ID of the sample", model=SampleModel, level=AccessType.READ
         )
+        .param(
+            "payload",
+            PAYLOAD_DESC,
+            required=False,
+            default=QR_PAYLOADS[0],
+            enum=list(QR_PAYLOADS),
+        )
     )
-    def download_sample(self, sample):
-        url = urlparse(cherrypy.request.headers["Referer"])
-        girder_base = f"{url.scheme}://{url.netloc}"
-        qr_img = SampleModel().qr_code(sample, girder_base)
+    def download_sample(self, sample, payload):
+        qr_img = SampleModel().qr_code(sample, base_url_for(payload), payload=payload)
         setResponseHeader("Content-Type", "image/png")
         setContentDisposition(f"{sample['name']}.png")
 
@@ -572,16 +615,23 @@ class Sample(Resource):
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
-        Description("Download QR codes for a list of samples").jsonParam(
+        Description("Download QR codes for a list of samples")
+        .jsonParam(
             "ids",
             "The IDs of the samples to download",
             requireArray=True,
         )
+        .param(
+            "payload",
+            PAYLOAD_DESC,
+            required=False,
+            default=QR_PAYLOADS[0],
+            enum=list(QR_PAYLOADS),
+        )
     )
-    def download_samples(self, ids):
+    def download_samples(self, ids, payload):
         user = self.getCurrentUser()
-        url = urlparse(cherrypy.request.headers["Referer"])
-        girder_base = f"{url.scheme}://{url.netloc}"
+        girder_base = base_url_for(payload)
         for sample_id in ids:
             if not SampleModel().load(sample_id, user=user, level=AccessType.READ):
                 raise RestException(f"Sample {sample_id} not found or access denied.")
@@ -592,15 +642,21 @@ class Sample(Resource):
             _zip = ziputil.ZipGenerator()
             csv_data = io.StringIO()
             csv_writer = csv.writer(csv_data)
-            csv_writer.writerow(["Sample ID", "Sample Name", "Add Event URL"])
+            # The first three columns are what this CSV has always had, and
+            # mean the same thing whatever got printed; the fourth says what
+            # that was, so a box of tags can be matched back to its samples.
+            csv_writer.writerow(
+                ["Sample ID", "Sample Name", "Add Event URL", "QR Payload"]
+            )
             for sample_id in ids:
                 doc = SampleModel().load(sample_id, user=user, level=AccessType.READ)
-                qr_img = SampleModel().qr_code(doc, girder_base)
+                qr_img = SampleModel().qr_code(doc, girder_base, payload=payload)
                 csv_writer.writerow(
                     [
                         str(doc["_id"]),
                         doc["name"],
-                        f"{girder_base}/#sample/{doc['_id']}/add",
+                        SampleModel().qr_payload(doc, girder_base) if girder_base else "",
+                        SampleModel().qr_payload(doc, girder_base, payload),
                     ]
                 )
 

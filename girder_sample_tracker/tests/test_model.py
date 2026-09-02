@@ -2,6 +2,7 @@ import datetime
 
 import pytest
 from girder.constants import AccessType
+from girder.exceptions import ValidationException
 
 from ..models.sample import Sample as SampleModel
 from .conftest import GIRDER_BASE, access_list
@@ -156,7 +157,41 @@ class TestSampleModelEvents:
 
 
 @pytest.mark.plugin("sample_tracker")
+class TestSampleModelQrPayload:
+    """What the code encodes, which is the part worth asserting; turning a
+    string into pixels is the qrcode library's job."""
+
+    def test_url_is_the_default(self, db, sample):
+        assert SampleModel().qr_payload(sample, GIRDER_BASE) == (
+            f"{GIRDER_BASE}/#sample/{sample['_id']}/add"
+        )
+        assert SampleModel().qr_payload(sample, GIRDER_BASE, "url") == (
+            SampleModel().qr_payload(sample, GIRDER_BASE)
+        )
+
+    def test_igsn_is_the_name_alone(self, db, sample):
+        assert SampleModel().qr_payload(sample, GIRDER_BASE, "igsn") == sample["name"]
+
+    def test_igsn_needs_no_base_url(self, db, sample):
+        """A ~5mm tag carries the identifier; there is no URL to build."""
+        assert SampleModel().qr_payload(sample, None, "igsn") == sample["name"]
+
+    @pytest.mark.parametrize("payload", ["bogus", "hub", "URL", "", None])
+    def test_an_unknown_payload_is_rejected(self, db, sample, payload):
+        with pytest.raises(ValidationException) as excinfo:
+            SampleModel().qr_payload(sample, GIRDER_BASE, payload)
+
+        assert "Unknown QR payload" in str(excinfo.value)
+
+
+@pytest.mark.plugin("sample_tracker")
 class TestSampleModelQrCode:
+    def test_qr_code_encodes_the_chosen_payload(self, db, sample):
+        assert (
+            SampleModel().qr_code(sample, GIRDER_BASE, payload="igsn").getvalue()
+            != SampleModel().qr_code(sample, GIRDER_BASE).getvalue()
+        )
+
     def test_qr_code_returns_png(self, db, sample):
         data = SampleModel().qr_code(sample, GIRDER_BASE).getvalue()
 
