@@ -25,7 +25,7 @@ from ..models.sample import Sample as SampleModel
 
 class Sample(Resource):
     def __init__(self):
-        super(Sample, self).__init__()
+        super().__init__()
         self.resourceName = "sample"
         self.route("GET", (), self.list_samples)
         self.route("DELETE", (), self.delete_samples)
@@ -324,7 +324,7 @@ class Sample(Resource):
                         f"Event type '{eventType}' is not allowed for sample {sample_id}."
                     )
                 samples.append(SampleModel().add_event(sample, event))
-            except Exception:
+            except Exception:  # noqa: BLE001 - one bad sample must not abort the batch
                 failed += 1
         return {"processed": len(samples), "failed": failed}
 
@@ -423,7 +423,7 @@ class Sample(Resource):
                     ]
                 )
 
-                def qr_stream():
+                def qr_stream(qr_img=qr_img):
                     yield qr_img.getvalue()
 
                 yield from _zip.addFile(qr_stream, f"{doc['name']}.png")
