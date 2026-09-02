@@ -92,6 +92,47 @@ class Sample(AccessControlledModel):
 
         return sample
 
+    def event_count(self, sample):
+        """How many events a sample has, without reading them."""
+        counted = self.collection.aggregate(
+            [
+                {"$match": {"_id": sample["_id"]}},
+                {"$project": {"count": {"$size": {"$ifNull": ["$events", []]}}}},
+            ]
+        )
+        doc = next(counted, None)
+        return doc["count"] if doc else 0
+
+    def list_events(self, sample, offset=0, limit=0, newest_first=True):
+        """Read one window of a sample's events, sliced by the database.
+
+        The point is not to load an event history that grows for the life of a
+        physical sample just to hand back ten of them.
+
+        Events are stored newest-first, so a newest-first page is that window
+        of the stored array. Reading oldest-first, or reading everything from
+        an offset with no limit, needs to know how many there are: that is one
+        extra count, which is still cheaper than reading the whole array.
+        """
+        if newest_first and limit > 0:
+            start, count = offset, limit
+        else:
+            end = self.event_count(sample) - offset
+            if newest_first:
+                start, count = offset, end
+            else:
+                start = max(0, end - limit) if limit > 0 else 0
+                count = end - start
+        if count <= 0:
+            return []
+
+        doc = self.collection.find_one(
+            {"_id": sample["_id"]},
+            {"events": {"$slice": [start, count]}},
+        )
+        events = (doc or {}).get("events", [])
+        return events if newest_first else list(reversed(events))
+
     def remove_event(self, sample, event, user=None):
         self.collection.update_one(
             {
