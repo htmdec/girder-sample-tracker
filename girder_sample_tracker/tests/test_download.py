@@ -5,6 +5,8 @@ import zipfile
 
 import pytest
 from girder.constants import AccessType
+from girder.models.setting import Setting
+from girder.settings import SettingKey
 from pytest_girder.assertions import assertStatus, assertStatusOk
 from pytest_girder.utils import getResponseBody
 
@@ -24,12 +26,16 @@ def download(server, user, sample_id, referer=REFERER, isJson=False, **kwargs):
     )
 
 
-def download_many(server, user, ids, referer=REFERER, isJson=False, **kwargs):
+def download_many(
+    server, user, ids, referer=REFERER, isJson=False, params_extra=None, **kwargs
+):
+    params = {"ids": json.dumps([str(i) for i in ids])}
+    params.update(params_extra or {})
     return server.request(
         path="/sample/download",
         method="POST",
         user=user,
-        params={"ids": json.dumps([str(i) for i in ids])},
+        params=params,
         isJson=isJson,
         additionalHeaders=[("Referer", referer)] if referer else None,
         **kwargs,
@@ -66,11 +72,93 @@ class TestDownloadSample:
 
         assertStatus(resp, 403)
 
-    def test_download_needs_a_referer(self, server, user, sample):
-        """The base URL is taken from the Referer header, so it is mandatory."""
-        resp = download(server, user, sample["_id"], referer=None, exception=True)
+    def test_download_without_a_referer_falls_back_to_the_server_root(
+        self, server, user, sample
+    ):
+        """curl, a script or a native client sends no Referer; that used to 500."""
+        Setting().set(SettingKey.SERVER_ROOT, "https://girder.example.com")
 
-        assertStatus(resp, 500)
+        resp = download(server, user, sample["_id"], referer=None)
+
+        assertStatusOk(resp)
+        assert getResponseBody(resp, text=False) == (
+            SampleModel().qr_code(sample, GIRDER_BASE).getvalue()
+        )
+
+    def test_the_referer_wins_over_the_server_root(self, server, user, sample):
+        """A label should point at the host the person is actually using."""
+        Setting().set(SettingKey.SERVER_ROOT, "https://elsewhere.example.com")
+
+        resp = download(server, user, sample["_id"])
+
+        assertStatusOk(resp)
+        assert getResponseBody(resp, text=False) == (
+            SampleModel().qr_code(sample, GIRDER_BASE).getvalue()
+        )
+
+    def test_a_trailing_slash_on_the_server_root_is_dropped(
+        self, server, user, sample
+    ):
+        Setting().set(SettingKey.SERVER_ROOT, f"{GIRDER_BASE}/")
+
+        resp = download(server, user, sample["_id"], referer=None)
+
+        assertStatusOk(resp)
+        assert getResponseBody(resp, text=False) == (
+            SampleModel().qr_code(sample, GIRDER_BASE).getvalue()
+        )
+
+    def test_no_referer_and_no_server_root_explains_itself(
+        self, server, user, sample
+    ):
+        resp = download(server, user, sample["_id"], referer=None, isJson=True)
+
+        assertStatus(resp, 400)
+        assert "core.server_root" in resp.json["message"]
+
+    def test_an_igsn_label_needs_no_base_url_at_all(self, server, user, sample):
+        """The tag carries the identifier, so nothing has to be configured."""
+        resp = download(server, user, sample["_id"], referer=None, params={"payload": "igsn"})
+
+        assertStatusOk(resp)
+        assert getResponseBody(resp, text=False) == (
+            SampleModel().qr_code(sample, None, payload="igsn").getvalue()
+        )
+
+    def test_the_payload_can_be_chosen(self, server, user, sample):
+        url_label = download(server, user, sample["_id"])
+        igsn_label = download(server, user, sample["_id"], params={"payload": "igsn"})
+
+        assertStatusOk(url_label)
+        assertStatusOk(igsn_label)
+        body = getResponseBody(igsn_label, text=False)
+        assert body.startswith(PNG_MAGIC)
+        assert body != getResponseBody(url_label, text=False)
+        assert body == SampleModel().qr_code(sample, GIRDER_BASE, payload="igsn").getvalue()
+
+    def test_asking_for_the_default_explicitly_changes_nothing(
+        self, server, user, sample
+    ):
+        resp = download(server, user, sample["_id"], params={"payload": "url"})
+
+        assertStatusOk(resp)
+        assert getResponseBody(resp, text=False) == (
+            SampleModel().qr_code(sample, GIRDER_BASE).getvalue()
+        )
+
+    def test_an_unknown_payload_is_rejected(self, server, user, sample):
+        """Silently falling back to a URL would print a box of wrong labels."""
+        resp = download(server, user, sample["_id"], params={"payload": "bogus"}, isJson=True)
+
+        assertStatus(resp, 400)
+        assert "payload" in resp.json["message"]
+
+    def test_headers_do_not_depend_on_the_payload(self, server, user, sample):
+        resp = download(server, user, sample["_id"], params={"payload": "igsn"})
+
+        assertStatusOk(resp)
+        assert resp.headers["Content-Type"] == "image/png"
+        assert f"{sample['name']}.png" in resp.headers["Content-Disposition"]
 
 
 @pytest.mark.plugin("sample_tracker")
@@ -107,11 +195,12 @@ class TestDownloadSamples:
 
         assertStatusOk(resp)
         rows = list(csv.reader(io.StringIO(self._zip(resp).read("samples.csv").decode())))
-        assert rows[0] == ["Sample ID", "Sample Name", "Add Event URL"]
+        assert rows[0] == ["Sample ID", "Sample Name", "Add Event URL", "QR Payload"]
         assert sorted(rows[1:], key=lambda r: r[1]) == [
             [
                 str(sample["_id"]),
                 sample["name"],
+                f"{GIRDER_BASE}/#sample/{sample['_id']}/add",
                 f"{GIRDER_BASE}/#sample/{sample['_id']}/add",
             ]
             for sample in sorted(samples, key=lambda s: s["name"])
@@ -148,9 +237,75 @@ class TestDownloadSamples:
         assertStatus(resp, 400)
         assert "not found or access denied" in resp.json["message"]
 
-    def test_bundle_requires_a_referer(self, server, user, samples):
-        resp = download_many(
-            server, user, [s["_id"] for s in samples], referer=None, exception=True
+    def test_bundle_without_a_referer_falls_back_to_the_server_root(
+        self, server, user, samples
+    ):
+        Setting().set(SettingKey.SERVER_ROOT, GIRDER_BASE)
+
+        resp = download_many(server, user, [s["_id"] for s in samples], referer=None)
+
+        assertStatusOk(resp)
+        archive = self._zip(resp)
+        assert sorted(archive.namelist()) == [
+            "Alpha.png",
+            "Beta.png",
+            "Gamma.png",
+            "samples.csv",
+        ]
+        assert archive.read("Alpha.png") == (
+            SampleModel().qr_code(samples[0], GIRDER_BASE).getvalue()
         )
 
-        assertStatus(resp, 500)
+    def test_bundle_with_no_referer_and_no_server_root_explains_itself(
+        self, server, user, samples
+    ):
+        resp = download_many(
+            server, user, [s["_id"] for s in samples], referer=None, isJson=True
+        )
+
+        assertStatus(resp, 400)
+        assert "core.server_root" in resp.json["message"]
+
+    def test_bundled_igsn_labels(self, server, user, samples):
+        resp = download_many(
+            server, user, [s["_id"] for s in samples], params_extra={"payload": "igsn"}
+        )
+
+        assertStatusOk(resp)
+        archive = self._zip(resp)
+        for sample in samples:
+            assert archive.read(f"{sample['name']}.png") == (
+                SampleModel().qr_code(sample, GIRDER_BASE, payload="igsn").getvalue()
+            )
+
+    def test_the_csv_reports_what_was_printed(self, server, user, samples):
+        resp = download_many(
+            server, user, [s["_id"] for s in samples], params_extra={"payload": "igsn"}
+        )
+
+        assertStatusOk(resp)
+        rows = list(csv.reader(io.StringIO(self._zip(resp).read("samples.csv").decode())))
+        assert rows[0] == ["Sample ID", "Sample Name", "Add Event URL", "QR Payload"]
+        # The add-event URL is still there, and useful, even though the tags
+        # carry the identifier instead.
+        assert sorted(rows[1:], key=lambda r: r[1]) == [
+            [
+                str(sample["_id"]),
+                sample["name"],
+                f"{GIRDER_BASE}/#sample/{sample['_id']}/add",
+                sample["name"],
+            ]
+            for sample in sorted(samples, key=lambda s: s["name"])
+        ]
+
+    def test_an_unknown_payload_is_rejected(self, server, user, samples):
+        resp = download_many(
+            server,
+            user,
+            [s["_id"] for s in samples],
+            params_extra={"payload": "bogus"},
+            isJson=True,
+        )
+
+        assertStatus(resp, 400)
+        assert "payload" in resp.json["message"]

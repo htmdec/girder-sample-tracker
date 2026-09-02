@@ -4,9 +4,14 @@ import io
 import cairosvg
 import qrcode
 from girder.constants import AccessType
+from girder.exceptions import ValidationException
 from girder.models.model_base import AccessControlledModel
 from qrcode.compat.etree import ET
 from qrcode.image.svg import SvgPathFillImage
+
+# What a sample's QR code can encode. "url" is first because it is the
+# default: every label printed so far carries one, and they stay valid.
+QR_PAYLOADS = ("url", "igsn")
 
 
 class Sample(AccessControlledModel):
@@ -142,7 +147,27 @@ class Sample(AccessControlledModel):
         )
         return self.load(sample["_id"], user=user)
 
-    def qr_code(self, sample, url, label=None):
+    def qr_payload(self, sample, url, payload="url"):
+        """The string a sample's QR code encodes.
+
+        ``url`` is a link into the web client's add-event page, which is what
+        a scanner pointed at a printed label expects.
+
+        ``igsn`` is the sample's name on its own, for the ~5mm 3D-printed tags
+        a URL does not fit on. The name is the right field: a sample created
+        for a minted identifier is named after it, and for every other sample
+        it is still the only human-meaningful identifier on the label.
+        """
+        if payload == "igsn":
+            return sample["name"]
+        if payload == "url":
+            return f"{url}/#sample/{sample['_id']}/add"
+        raise ValidationException(
+            f"Unknown QR payload '{payload}'; expected one of "
+            f"{', '.join(QR_PAYLOADS)}."
+        )
+
+    def qr_code(self, sample, url, label=None, payload="url"):
         buf = io.BytesIO()
         qr = qrcode.QRCode(
             version=8,
@@ -150,7 +175,7 @@ class Sample(AccessControlledModel):
             border=10,
             image_factory=SvgPathFillImage,
         )
-        qr.add_data(f"{url}/#sample/{sample['_id']}/add")
+        qr.add_data(self.qr_payload(sample, url, payload))
         qr.make(fit=True)
 
         img = qr.make_image(fill_color="black", back_color="white")
