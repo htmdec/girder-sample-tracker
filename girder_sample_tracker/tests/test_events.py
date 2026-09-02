@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from girder.constants import AccessType
+from girder.constants import AccessType, TokenScope
 from pytest_girder.assertions import assertStatus, assertStatusOk
 
 from ..models.sample import Sample as SampleModel
@@ -507,3 +507,79 @@ class TestMultisampleFailureDetail:
         for failure in resp.json["failures"]:
             assert "Traceback" not in failure["reason"]
             assert "girder_sample_tracker" not in failure["reason"]
+
+
+@pytest.mark.plugin("sample_tracker")
+class TestScopedTokens:
+    """The mobile client stores a scoped, revocable API key, not a session."""
+
+    @staticmethod
+    def _data_write_token(server, user):
+        """Mint a token from an API key scoped to writing data only."""
+        created = server.request(
+            path="/api_key",
+            method="POST",
+            user=user,
+            params={"name": "mobile", "scope": json.dumps([TokenScope.DATA_WRITE])},
+        )
+        assertStatusOk(created)
+
+        minted = server.request(
+            path="/api_key/token",
+            method="POST",
+            params={"key": created.json["key"]},
+        )
+        assertStatusOk(minted)
+        assert minted.json["authToken"]["scope"] == [TokenScope.DATA_WRITE]
+        return minted.json["authToken"]["token"]
+
+    def test_scoped_token_can_add_an_event(self, server, user, sample):
+        token = self._data_write_token(server, user)
+
+        resp = server.request(
+            path=f"/sample/{sample['_id']}/event",
+            method="POST",
+            token=token,
+            params={"eventType": "created", "clientEventId": "phone-1"},
+        )
+
+        assertStatusOk(resp)
+        assert resp.json["events"][0]["eventType"] == "created"
+
+    def test_scoped_token_can_add_a_bulk_event(self, server, user, samples):
+        token = self._data_write_token(server, user)
+
+        resp = server.request(
+            path="/sample/event",
+            method="POST",
+            token=token,
+            params={
+                "ids": json.dumps([str(s["_id"]) for s in samples]),
+                "eventType": "created",
+            },
+        )
+
+        assertStatusOk(resp)
+        assert resp.json["processed"] == 3
+
+    def test_a_read_only_token_still_cannot_write(self, server, user, sample):
+        created = server.request(
+            path="/api_key",
+            method="POST",
+            user=user,
+            params={"name": "reader", "scope": json.dumps([TokenScope.DATA_READ])},
+        )
+        assertStatusOk(created)
+        minted = server.request(
+            path="/api_key/token", method="POST", params={"key": created.json["key"]}
+        )
+        assertStatusOk(minted)
+
+        resp = server.request(
+            path=f"/sample/{sample['_id']}/event",
+            method="POST",
+            token=minted.json["authToken"]["token"],
+            params={"eventType": "created"},
+        )
+
+        assertStatus(resp, 401)

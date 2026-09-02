@@ -342,7 +342,7 @@ class Sample(Resource):
             sample = SampleModel().setAccessList(doc, access, save=True, user=user)
         return sample
 
-    @access.user
+    @access.user(scope=TokenScope.DATA_WRITE)
     @autoDescribeRoute(
         Description("Create an event for multiple samples")
         .jsonParam(
@@ -438,7 +438,7 @@ class Sample(Resource):
             "failures": failures,
         }
 
-    @access.user
+    @access.user(scope=TokenScope.DATA_WRITE)
     @autoDescribeRoute(
         Description("Create an event for a sample")
         .modelParam(
