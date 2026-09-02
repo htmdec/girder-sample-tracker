@@ -96,7 +96,7 @@ class Sample(Resource):
             sample["name"] = name
         if description:
             sample["description"] = description
-        if eventTypes != sample.get("eventTypes", []):
+        if eventTypes is not None and eventTypes != sample.get("eventTypes", []):
             sample["eventTypes"] = eventTypes
         sample["updated"] = datetime.datetime.now(datetime.UTC)
         return SampleModel().save(sample)
@@ -203,16 +203,12 @@ class Sample(Resource):
             message="Calculating size...",
         ) as ctx:
             ctx.update(total=total)
-            current = 0
-            for sample_id in ids:
+            for current, sample_id in enumerate(ids, start=1):
                 doc = SampleModel().load(
                     sample_id, user=user, level=AccessType.ADMIN, exc=True
                 )
                 SampleModel().remove(doc, progress=ctx)
-                if progress:
-                    current += 1
-                    if ctx.progress["data"]["current"] != current:
-                        ctx.update(current=current, message="Deleted sample")
+                ctx.update(current=current, message="Deleted sample")
 
     @access.user
     @autoDescribeRoute(
@@ -280,6 +276,7 @@ class Sample(Resource):
     )
     def bulk_update_access(self, ids, access, publicFlags, public):
         user = self.getCurrentUser()
+        sample = None
         for sample_id in ids:
             doc = SampleModel().load(
                 sample_id, user=user, level=AccessType.ADMIN, exc=True
