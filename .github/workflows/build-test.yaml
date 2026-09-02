@@ -54,10 +54,14 @@ jobs:
       env:
         GIRDER_MAX_CURSOR_TIMEOUT_MS: 60000
       run: tox -e pytest
-    - name: Upload Coverage to Codecov
-      uses: codecov/codecov-action@v7
+    # Handed to the "coverage" job rather than uploaded here, so that both
+    # suites reach Codecov together.
+    - name: Upload coverage data
+      uses: actions/upload-artifact@v7
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+        name: backend-coverage
+        path: coverage.xml
+        retention-days: 1
 
   ui:
     name: Web client tests
@@ -132,16 +136,49 @@ jobs:
         path: girder_sample_tracker/web_client/test-results
         retention-days: 14
         if-no-files-found: ignore
-    - name: Upload web client coverage report
-      if: always()
+    # lcov.info for the "coverage" job, html/ for a person to read; the
+    # per-test fragments under data/ are noise once they have been merged.
+    - name: Upload coverage data
       uses: actions/upload-artifact@v7
       with:
         name: webclient-coverage
-        path: girder_sample_tracker/web_client/coverage/html
+        path: |
+          girder_sample_tracker/web_client/coverage
+          !girder_sample_tracker/web_client/coverage/data
         retention-days: 14
         if-no-files-found: warn
-    - name: Upload Coverage to Codecov
-      if: always()
+
+  coverage:
+    name: Coverage
+    needs: [build, ui]
+    runs-on: ubuntu-24.04
+    steps:
+    # Both reports are uploaded from one job so Codecov sees them arrive
+    # together: the suites take very different amounts of time, and uploading
+    # from each of them meant a half-finished picture and a notification for
+    # each half. See codecov.yml, which holds the notification until both
+    # uploads are in.
+    - name: Checkout repo
+      uses: actions/checkout@v7
+    # Downloaded to where each suite writes it, so the reports are uploaded
+    # from the paths they describe.
+    - name: Download server coverage
+      uses: actions/download-artifact@v7
+      with:
+        name: backend-coverage
+        path: .
+    - name: Download web client coverage
+      uses: actions/download-artifact@v7
+      with:
+        name: webclient-coverage
+        path: girder_sample_tracker/web_client/coverage
+    - name: Upload server coverage to Codecov
+      uses: codecov/codecov-action@v7
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: coverage.xml
+        flags: backend
+    - name: Upload web client coverage to Codecov
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}

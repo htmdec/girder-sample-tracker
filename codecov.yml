@@ -1,0 +1,16 @@
+# The two test suites upload one report each, both from the single "coverage"
+# job in .github/workflows/build-test.yaml.
+#
+# Nothing is reported until both are in: the suites take very different amounts
+# of time, so notifying on the first upload to arrive meant a status, a comment
+# and an email describing half the project.
+codecov:
+  notify:
+    after_n_builds: 2
+    # Also hold off while the run itself is still going.
+    wait_for_ci: true
+
+comment:
+  after_n_builds: 2
+  # "flags" breaks the comment down per suite: backend and webclient.
+  layout: "reach, diff, flags, files"
