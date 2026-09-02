@@ -1,0 +1,28 @@
+# Both test suites' reports arrive in a single upload, from the "coverage" job
+# in .github/workflows/build-test.yaml. That is deliberate: one upload is one
+# status, one pull request comment and one email, and it always describes the
+# whole project. Uploading from each suite as it finished meant Codecov
+# reporting on the python half first -- the suites take very different amounts
+# of time -- and then again on both.
+comment:
+  layout: "reach, diff, components, files"
+
+# Components rather than per-flag paths, which is what Codecov recommends for a
+# project setting this up now: they are defined here alone, so the split does
+# not depend on how CI labels its uploads.
+#
+# Split by extension rather than by directory, because the web client lives
+# inside the python package: girder_sample_tracker/web_client/.
+component_management:
+  individual_components:
+    - component_id: backend
+      name: backend
+      paths:
+        # Both, because "**/" compiles to a regex that insists on at least one
+        # directory level, which would drop girder_sample_tracker/__init__.py.
+        - girder_sample_tracker/*.py
+        - girder_sample_tracker/**/*.py
+    - component_id: webclient
+      name: web client
+      paths:
+        - girder_sample_tracker/web_client/**
