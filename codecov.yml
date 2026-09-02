@@ -12,5 +12,25 @@ codecov:
 
 comment:
   after_n_builds: 2
-  # "flags" breaks the comment down per suite: backend and webclient.
-  layout: "reach, diff, flags, files"
+  layout: "reach, diff, components, files"
+
+# Components rather than per-flag paths, which is what Codecov recommends for a
+# project setting this up now: they are defined here alone, so the split does
+# not depend on how CI happens to label its uploads. The uploads still carry a
+# flag each, but only to say which report is which.
+#
+# Split by extension rather than by directory, because the web client lives
+# inside the python package: girder_sample_tracker/web_client/.
+component_management:
+  individual_components:
+    - component_id: backend
+      name: backend
+      paths:
+        # Both, because "**/" compiles to a regex that insists on at least one
+        # directory level, which would drop girder_sample_tracker/__init__.py.
+        - girder_sample_tracker/*.py
+        - girder_sample_tracker/**/*.py
+    - component_id: webclient
+      name: web client
+      paths:
+        - girder_sample_tracker/web_client/**
