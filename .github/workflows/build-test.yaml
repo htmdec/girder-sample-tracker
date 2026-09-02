@@ -172,15 +172,16 @@ jobs:
       with:
         name: webclient-coverage
         path: girder_sample_tracker/web_client/coverage
-    - name: Upload server coverage to Codecov
+    # One upload carrying both reports, so Codecov has the whole picture the
+    # first time it looks and reports once. The breakdown by area comes from
+    # the components in codecov.yml, which need nothing at upload time.
+    #
+    # disable_search matters: `files` is documented as "added to the coverage
+    # files found for upload", so without it the action also sweeps up whatever
+    # else it finds in the workspace.
+    - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: coverage.xml
-        flags: backend
-    - name: Upload web client coverage to Codecov
-      uses: codecov/codecov-action@v7
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: girder_sample_tracker/web_client/coverage/lcov.info
-        flags: webclient
+        disable_search: true
+        files: coverage.xml,girder_sample_tracker/web_client/coverage/lcov.info

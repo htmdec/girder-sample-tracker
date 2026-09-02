@@ -1,23 +1,15 @@
-# The two test suites upload one report each, both from the single "coverage"
-# job in .github/workflows/build-test.yaml.
-#
-# Nothing is reported until both are in: the suites take very different amounts
-# of time, so notifying on the first upload to arrive meant a status, a comment
-# and an email describing half the project.
-codecov:
-  notify:
-    after_n_builds: 2
-    # Also hold off while the run itself is still going.
-    wait_for_ci: true
-
+# Both test suites' reports arrive in a single upload, from the "coverage" job
+# in .github/workflows/build-test.yaml. That is deliberate: one upload is one
+# status, one pull request comment and one email, and it always describes the
+# whole project. Uploading from each suite as it finished meant Codecov
+# reporting on the python half first -- the suites take very different amounts
+# of time -- and then again on both.
 comment:
-  after_n_builds: 2
   layout: "reach, diff, components, files"
 
 # Components rather than per-flag paths, which is what Codecov recommends for a
 # project setting this up now: they are defined here alone, so the split does
-# not depend on how CI happens to label its uploads. The uploads still carry a
-# flag each, but only to say which report is which.
+# not depend on how CI labels its uploads.
 #
 # Split by extension rather than by directory, because the web client lives
 # inside the python package: girder_sample_tracker/web_client/.
