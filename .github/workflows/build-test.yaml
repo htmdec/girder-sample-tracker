@@ -71,6 +71,10 @@ jobs:
         ports:
           - 27017:27017
     steps:
+    # Before the setup steps, because setup-node's npm cache and the browser
+    # cache key below both need the lock file to already be on disk.
+    - name: Checkout repo
+      uses: actions/checkout@v7
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
@@ -81,8 +85,6 @@ jobs:
         node-version: 24
         cache: npm
         cache-dependency-path: girder_sample_tracker/web_client/package-lock.json
-    - name: Checkout repo
-      uses: actions/checkout@v7
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
