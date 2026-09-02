@@ -15,12 +15,70 @@ from girder.api.rest import (
     setResponseHeader,
 )
 from girder.constants import AccessType, SortDir, TokenScope
-from girder.exceptions import RestException, ValidationException
+from girder.exceptions import AccessException, RestException, ValidationException
 from girder.models.user import User
 from girder.utility import ziputil
 from girder.utility.progress import ProgressContext
 
 from ..models.sample import Sample as SampleModel
+
+CLIENT_EVENT_ID_DESC = (
+    "A client-generated id for this event. Posting the same id to the same "
+    "sample twice records the event once, so a client may safely retry a "
+    "request whose response it never saw."
+)
+
+
+def coordinates(latitude, longitude, accuracy):
+    """Validate a reading from a device's geolocation API.
+
+    Returns the fields to merge into an event, empty when nothing was sent.
+    """
+    if (latitude is None) != (longitude is None):
+        raise ValidationException(
+            "latitude and longitude must be provided together."
+        )
+    if latitude is not None and not -90 <= latitude <= 90:
+        raise ValidationException("latitude must be between -90 and 90.")
+    if longitude is not None and not -180 <= longitude <= 180:
+        raise ValidationException("longitude must be between -180 and 180.")
+    if accuracy is not None and accuracy < 0:
+        raise ValidationException("accuracy must not be negative.")
+
+    fields = {}
+    if latitude is not None:
+        fields["latitude"] = latitude
+        fields["longitude"] = longitude
+    if accuracy is not None:
+        fields["accuracy"] = accuracy
+    return fields
+
+
+def build_event(
+    user,
+    eventType,
+    location,
+    comment,
+    clientEventId=None,
+    latitude=None,
+    longitude=None,
+    accuracy=None,
+):
+    """Assemble the event subdocument stored on a sample."""
+    event = {
+        "comment": comment,
+        "created": datetime.datetime.now(datetime.UTC),
+        "creator": user["_id"],
+        "creatorName": f"{user['firstName']} {user['lastName']}",
+        "eventType": eventType,
+        "location": location,
+    }
+    # Left out entirely when absent, both to keep the index sparse and to
+    # avoid claiming an idempotency key that was never supplied.
+    if clientEventId:
+        event["clientEventId"] = clientEventId
+    event.update(coordinates(latitude, longitude, accuracy))
+    return event
 
 
 class Sample(Resource):
@@ -284,33 +342,70 @@ class Sample(Resource):
             sample = SampleModel().setAccessList(doc, access, save=True, user=user)
         return sample
 
-    @access.user
+    @access.user(scope=TokenScope.DATA_WRITE)
     @autoDescribeRoute(
         Description("Create an event for multiple samples")
         .jsonParam(
             "ids", "The IDs of the samples to create an event for", requireArray=True
         )
         .param("eventType", "The type of the event", required=True)
-        .param("location", "The location of the event", required=False)
+        .param(
+            "location",
+            "A human-readable label for where the event happened, such as a "
+            "freezer or bench id. Use latitude/longitude for coordinates.",
+            required=False,
+        )
         .param("comment", "Extra comment about the event", required=False)
+        .param("clientEventId", CLIENT_EVENT_ID_DESC, required=False, strip=True)
+        .param(
+            "latitude",
+            "Latitude of the event, in degrees",
+            required=False,
+            dataType="float",
+        )
+        .param(
+            "longitude",
+            "Longitude of the event, in degrees",
+            required=False,
+            dataType="float",
+        )
+        .param(
+            "accuracy",
+            "Radius of 95% confidence around the coordinates, in meters",
+            required=False,
+            dataType="float",
+        )
     )
-    def create_multisample_event(self, ids, eventType, location, comment):
+    def create_multisample_event(
+        self,
+        ids,
+        eventType,
+        location,
+        comment,
+        clientEventId,
+        latitude,
+        longitude,
+        accuracy,
+    ):
         user = self.getCurrentUser()
         if not ids:
             raise ValidationException("At least one sample ID must be provided.")
 
-        event = {
-            "comment": comment,
-            "created": datetime.datetime.now(datetime.UTC),
-            "creator": user["_id"],
-            "creatorName": f"{user['firstName']} {user['lastName']}",
-            "eventType": eventType,
-            "location": location,
-        }
+        event = build_event(
+            user,
+            eventType,
+            location,
+            comment,
+            clientEventId,
+            latitude,
+            longitude,
+            accuracy,
+        )
 
         samples = []
-        failed = 0
+        failures = []
         for sample_id in ids:
+            sample = None
             try:
                 sample = SampleModel().load(
                     sample_id, user=user, level=AccessType.WRITE, exc=True
@@ -321,31 +416,85 @@ class Sample(Resource):
                         f"Event type '{eventType}' is not allowed for sample {sample_id}."
                     )
                 samples.append(SampleModel().add_event(sample, event))
-            except Exception:  # noqa: BLE001 - one bad sample must not abort the batch
-                failed += 1
-        return {"processed": len(samples), "failed": failed}
+            except (ValidationException, AccessException, RestException) as exc:
+                # One unwritable sample must not abort the batch, but the user
+                # scanning 30 tubes needs to know which ones to redo. Anything
+                # outside these three is a bug here, not bad input, so it
+                # propagates.
+                failures.append(
+                    {
+                        "id": str(sample_id),
+                        # None when the load itself failed: an id we cannot
+                        # read is an id whose name we should not report.
+                        "name": sample["name"] if sample else None,
+                        "reason": str(exc),
+                    }
+                )
+        return {
+            "processed": len(samples),
+            # Still an integer, because web_client/views/SampleListView.js
+            # tests `resp.failed > 0` and an array there compares as NaN.
+            "failed": len(failures),
+            "failures": failures,
+        }
 
-    @access.user
+    @access.user(scope=TokenScope.DATA_WRITE)
     @autoDescribeRoute(
         Description("Create an event for a sample")
         .modelParam(
             "id", "The ID of the sample", model=SampleModel, level=AccessType.WRITE
         )
         .param("eventType", "The type of the event", required=True)
-        .param("location", "The location of the event", required=False)
+        .param(
+            "location",
+            "A human-readable label for where the event happened, such as a "
+            "freezer or bench id. Use latitude/longitude for coordinates.",
+            required=False,
+        )
         .param("comment", "Extra comment about the event", required=False)
+        .param("clientEventId", CLIENT_EVENT_ID_DESC, required=False, strip=True)
+        .param(
+            "latitude",
+            "Latitude of the event, in degrees",
+            required=False,
+            dataType="float",
+        )
+        .param(
+            "longitude",
+            "Longitude of the event, in degrees",
+            required=False,
+            dataType="float",
+        )
+        .param(
+            "accuracy",
+            "Radius of 95% confidence around the coordinates, in meters",
+            required=False,
+            dataType="float",
+        )
     )
     @filtermodel(model="sample", plugin="sample_tracker")
-    def create_event(self, sample, eventType, location, comment):
+    def create_event(
+        self,
+        sample,
+        eventType,
+        location,
+        comment,
+        clientEventId,
+        latitude,
+        longitude,
+        accuracy,
+    ):
         user = self.getCurrentUser()
-        event = {
-            "comment": comment,
-            "created": datetime.datetime.now(datetime.UTC),
-            "creator": user["_id"],
-            "creatorName": f"{user['firstName']} {user['lastName']}",
-            "eventType": eventType,
-            "location": location,
-        }
+        event = build_event(
+            user,
+            eventType,
+            location,
+            comment,
+            clientEventId,
+            latitude,
+            longitude,
+            accuracy,
+        )
         return SampleModel().add_event(sample, event)
 
     @access.user
