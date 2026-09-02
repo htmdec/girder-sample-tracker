@@ -1,3 +1,4 @@
+import datetime
 import json
 
 import pytest
@@ -562,6 +563,30 @@ class TestScopedTokens:
         assertStatusOk(resp)
         assert resp.json["processed"] == 3
 
+    def test_a_read_only_token_can_page_the_history(self, server, user, sample):
+        assertStatusOk(add_event(server, user, sample["_id"], "created"))
+        created = server.request(
+            path="/api_key",
+            method="POST",
+            user=user,
+            params={"name": "reader", "scope": json.dumps([TokenScope.DATA_READ])},
+        )
+        assertStatusOk(created)
+        minted = server.request(
+            path="/api_key/token", method="POST", params={"key": created.json["key"]}
+        )
+        assertStatusOk(minted)
+
+        resp = server.request(
+            path=f"/sample/{sample['_id']}/event",
+            method="GET",
+            token=minted.json["authToken"]["token"],
+            params={"limit": 10},
+        )
+
+        assertStatusOk(resp)
+        assert [e["eventType"] for e in resp.json] == ["created"]
+
     def test_a_read_only_token_still_cannot_write(self, server, user, sample):
         created = server.request(
             path="/api_key",
@@ -583,3 +608,139 @@ class TestScopedTokens:
         )
 
         assertStatus(resp, 401)
+
+
+@pytest.mark.plugin("sample_tracker")
+class TestListEvents:
+    """``GET /sample/:id/event``: a page of history, for clients on a phone."""
+
+    @staticmethod
+    def _events(server, sample_id, user=None, **params):
+        return server.request(
+            path=f"/sample/{sample_id}/event", method="GET", user=user, params=params
+        )
+
+    @pytest.fixture
+    def busy_sample(self, db, user):
+        """A sample with 25 events, oldest first, so index 0 is the newest."""
+        sample = SampleModel().create("Well travelled", user)
+        for i in range(25):
+            SampleModel().add_event(
+                sample,
+                {
+                    "comment": None,
+                    "created": datetime.datetime(
+                        2026, 1, 1, tzinfo=datetime.UTC
+                    ) + datetime.timedelta(days=i),
+                    "creator": user["_id"],
+                    "creatorName": f"{user['firstName']} {user['lastName']}",
+                    "eventType": f"event-{i}",
+                    "location": None,
+                },
+            )
+        return SampleModel().load(sample["_id"], force=True)
+
+    def test_pages_through_the_history(self, server, user, busy_sample):
+        first = self._events(server, busy_sample["_id"], user, limit=10)
+        second = self._events(server, busy_sample["_id"], user, limit=10, offset=10)
+        third = self._events(server, busy_sample["_id"], user, limit=10, offset=20)
+
+        for resp in (first, second, third):
+            assertStatusOk(resp)
+        assert len(first.json) == 10
+        assert len(second.json) == 10
+        assert len(third.json) == 5
+
+        paged = [e["eventType"] for r in (first, second, third) for e in r.json]
+        assert paged == [f"event-{i}" for i in reversed(range(25))]
+        assert len(set(paged)) == 25
+
+    def test_the_default_page_is_the_head_of_the_full_array(
+        self, server, user, busy_sample
+    ):
+        resp = self._events(server, busy_sample["_id"], user, limit=10)
+        whole = server.request(
+            path=f"/sample/{busy_sample['_id']}", method="GET", user=user
+        )
+
+        assertStatusOk(resp)
+        assertStatusOk(whole)
+        assert resp.json == whole.json["events"][:10]
+
+    def test_events_are_shaped_like_the_ones_on_the_sample(
+        self, server, user, busy_sample
+    ):
+        resp = self._events(server, busy_sample["_id"], user, limit=1)
+
+        assertStatusOk(resp)
+        event = resp.json[0]
+        assert event["eventType"] == "event-24"
+        assert event["creator"] == str(user["_id"])
+        assert event["creatorName"] == f"{user['firstName']} {user['lastName']}"
+        assert event["created"].startswith("2026-01-25T")
+
+    def test_oldest_first_pages_from_the_other_end(self, server, user, busy_sample):
+        first = self._events(server, busy_sample["_id"], user, limit=10, sortdir=1)
+        last = self._events(
+            server, busy_sample["_id"], user, limit=10, offset=20, sortdir=1
+        )
+
+        assertStatusOk(first)
+        assertStatusOk(last)
+        assert [e["eventType"] for e in first.json] == [
+            f"event-{i}" for i in range(10)
+        ]
+        # The tail is short, and still the five oldest-last events.
+        assert [e["eventType"] for e in last.json] == [
+            f"event-{i}" for i in range(20, 25)
+        ]
+
+    def test_no_limit_returns_the_rest(self, server, user, busy_sample):
+        resp = self._events(server, busy_sample["_id"], user, limit=0, offset=20)
+
+        assertStatusOk(resp)
+        assert [e["eventType"] for e in resp.json] == [
+            f"event-{i}" for i in reversed(range(5))
+        ]
+
+    def test_an_offset_past_the_end_is_empty(self, server, user, busy_sample):
+        for params in ({"offset": 25}, {"offset": 99}, {"offset": 25, "sortdir": 1}):
+            resp = self._events(server, busy_sample["_id"], user, limit=10, **params)
+
+            assertStatusOk(resp)
+            assert resp.json == []
+
+    def test_a_sample_with_no_events(self, server, user, sample):
+        resp = self._events(server, sample["_id"], user)
+
+        assertStatusOk(resp)
+        assert resp.json == []
+
+    def test_sorting_by_anything_else_is_rejected(self, server, user, busy_sample):
+        resp = self._events(server, busy_sample["_id"], user, sort="eventType")
+
+        assertStatus(resp, 400)
+        assert "only be sorted by 'created'" in resp.json["message"]
+
+    def test_read_access_is_required(self, server, user, user2, busy_sample):
+        resp = self._events(server, busy_sample["_id"], user2)
+
+        assertStatus(resp, 403)
+
+    def test_read_access_is_enough(self, server, user, user2, busy_sample):
+        SampleModel().setUserAccess(busy_sample, user2, AccessType.READ, save=True)
+        resp = self._events(server, busy_sample["_id"], user2, limit=3)
+
+        assertStatusOk(resp)
+        assert len(resp.json) == 3
+
+    def test_the_whole_sample_still_carries_every_event(
+        self, server, user, busy_sample
+    ):
+        """Regression guard: the web client renders from this array."""
+        resp = server.request(
+            path=f"/sample/{busy_sample['_id']}", method="GET", user=user
+        )
+
+        assertStatusOk(resp)
+        assert len(resp.json["events"]) == 25

@@ -97,6 +97,7 @@ class Sample(Resource):
         self.route("DELETE", (":id",), self.delete_sample)
         self.route("GET", (":id", "access"), self.get_access)
         self.route("PUT", (":id", "access"), self.update_access)
+        self.route("GET", (":id", "event"), self.list_events)
         self.route("POST", (":id", "event"), self.create_event)
         self.route("DELETE", (":id", "event"), self.delete_event)
 
@@ -437,6 +438,40 @@ class Sample(Resource):
             "failed": len(failures),
             "failures": failures,
         }
+
+    @access.public(scope=TokenScope.DATA_READ)
+    @autoDescribeRoute(
+        Description("List a page of a sample's events, newest first")
+        .notes(
+            "For clients that should not have to read an event history that "
+            "grows for the life of a sample. GET /sample/{id} still returns "
+            "all of them, and is where to look for the total."
+            "\n\n"
+            "Only 'created' can be sorted on: events are stored in the order "
+            "they were created, and this route pages through that order "
+            "rather than reading the whole history to sort it."
+        )
+        .modelParam(
+            "id", "The ID of the sample", model=SampleModel, level=AccessType.READ
+        )
+        .pagingParams(defaultSort="created", defaultSortDir=SortDir.DESCENDING)
+        .errorResponse("ID was invalid.")
+        .errorResponse("Read access was denied for the sample.", 403)
+    )
+    def list_events(self, sample, limit, offset, sort):
+        # pagingParams hands sort over as pymongo would want it: one
+        # (field, direction) pair.
+        field, direction = sort[0]
+        if field != "created":
+            raise RestException(
+                f"Events can only be sorted by 'created', not '{field}'."
+            )
+        return SampleModel().list_events(
+            sample,
+            offset=offset,
+            limit=limit,
+            newest_first=direction == SortDir.DESCENDING,
+        )
 
     @access.user(scope=TokenScope.DATA_WRITE)
     @autoDescribeRoute(
