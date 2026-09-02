@@ -22,6 +22,29 @@ from girder.utility.progress import ProgressContext
 
 from ..models.sample import Sample as SampleModel
 
+CLIENT_EVENT_ID_DESC = (
+    "A client-generated id for this event. Posting the same id to the same "
+    "sample twice records the event once, so a client may safely retry a "
+    "request whose response it never saw."
+)
+
+
+def build_event(user, eventType, location, comment, clientEventId=None):
+    """Assemble the event subdocument stored on a sample."""
+    event = {
+        "comment": comment,
+        "created": datetime.datetime.now(datetime.UTC),
+        "creator": user["_id"],
+        "creatorName": f"{user['firstName']} {user['lastName']}",
+        "eventType": eventType,
+        "location": location,
+    }
+    # Left out entirely when absent, both to keep the index sparse and to
+    # avoid claiming an idempotency key that was never supplied.
+    if clientEventId:
+        event["clientEventId"] = clientEventId
+    return event
+
 
 class Sample(Resource):
     def __init__(self):
@@ -293,20 +316,14 @@ class Sample(Resource):
         .param("eventType", "The type of the event", required=True)
         .param("location", "The location of the event", required=False)
         .param("comment", "Extra comment about the event", required=False)
+        .param("clientEventId", CLIENT_EVENT_ID_DESC, required=False, strip=True)
     )
-    def create_multisample_event(self, ids, eventType, location, comment):
+    def create_multisample_event(self, ids, eventType, location, comment, clientEventId):
         user = self.getCurrentUser()
         if not ids:
             raise ValidationException("At least one sample ID must be provided.")
 
-        event = {
-            "comment": comment,
-            "created": datetime.datetime.now(datetime.UTC),
-            "creator": user["_id"],
-            "creatorName": f"{user['firstName']} {user['lastName']}",
-            "eventType": eventType,
-            "location": location,
-        }
+        event = build_event(user, eventType, location, comment, clientEventId)
 
         samples = []
         failed = 0
@@ -334,18 +351,12 @@ class Sample(Resource):
         .param("eventType", "The type of the event", required=True)
         .param("location", "The location of the event", required=False)
         .param("comment", "Extra comment about the event", required=False)
+        .param("clientEventId", CLIENT_EVENT_ID_DESC, required=False, strip=True)
     )
     @filtermodel(model="sample", plugin="sample_tracker")
-    def create_event(self, sample, eventType, location, comment):
+    def create_event(self, sample, eventType, location, comment, clientEventId):
         user = self.getCurrentUser()
-        event = {
-            "comment": comment,
-            "created": datetime.datetime.now(datetime.UTC),
-            "creator": user["_id"],
-            "creatorName": f"{user['firstName']} {user['lastName']}",
-            "eventType": eventType,
-            "location": location,
-        }
+        event = build_event(user, eventType, location, comment, clientEventId)
         return SampleModel().add_event(sample, event)
 
     @access.user

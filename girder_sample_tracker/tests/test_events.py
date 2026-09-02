@@ -5,7 +5,7 @@ from girder.constants import AccessType
 from pytest_girder.assertions import assertStatus, assertStatusOk
 
 from ..models.sample import Sample as SampleModel
-from .conftest import add_event
+from .conftest import add_event, add_multisample_event
 
 
 def event_payload(sample, event):
@@ -92,12 +92,7 @@ class TestCreateEvent:
 
 @pytest.mark.plugin("sample_tracker")
 class TestCreateMultisampleEvent:
-    def _post(self, server, user, ids, eventType, **kwargs):
-        params = {"ids": json.dumps([str(i) for i in ids]), "eventType": eventType}
-        params.update(kwargs)
-        return server.request(
-            path="/sample/event", method="POST", user=user, params=params
-        )
+    _post = staticmethod(add_multisample_event)
 
     def test_event_is_added_to_every_sample(self, server, user, samples):
         resp = self._post(
@@ -232,3 +227,93 @@ class TestDeleteEvent:
         )
 
         assertStatus(resp, 400)
+
+
+@pytest.mark.plugin("sample_tracker")
+class TestClientEventId:
+    """A retried write must not turn into a second event."""
+
+    _post_multi = staticmethod(add_multisample_event)
+
+    def test_repeated_client_event_id_is_recorded_once(self, server, user, sample):
+        first = add_event(
+            server, user, sample["_id"], "created", clientEventId="abc-123"
+        )
+        second = add_event(
+            server, user, sample["_id"], "created", clientEventId="abc-123"
+        )
+
+        assertStatusOk(first)
+        assertStatusOk(second)
+        assert len(first.json["events"]) == 1
+        assert len(second.json["events"]) == 1
+        stored = SampleModel().load(sample["_id"], force=True)["events"][0]
+        assert stored["clientEventId"] == "abc-123"
+
+    def test_retry_does_not_bump_updated_again(self, server, user, sample):
+        assertStatusOk(
+            add_event(server, user, sample["_id"], "created", clientEventId="abc-123")
+        )
+        after_first = SampleModel().load(sample["_id"], force=True)["updated"]
+
+        assertStatusOk(
+            add_event(server, user, sample["_id"], "created", clientEventId="abc-123")
+        )
+
+        assert SampleModel().load(sample["_id"], force=True)["updated"] == after_first
+
+    def test_different_client_event_ids_are_two_events(self, server, user, sample):
+        assertStatusOk(
+            add_event(server, user, sample["_id"], "created", clientEventId="one")
+        )
+        resp = add_event(server, user, sample["_id"], "shipped", clientEventId="two")
+
+        assertStatusOk(resp)
+        assert [e["clientEventId"] for e in resp.json["events"]] == ["two", "one"]
+
+    def test_without_a_client_event_id_repeats_still_append(self, server, user, sample):
+        assertStatusOk(add_event(server, user, sample["_id"], "created"))
+        resp = add_event(server, user, sample["_id"], "created")
+
+        assertStatusOk(resp)
+        assert len(resp.json["events"]) == 2
+        assert "clientEventId" not in resp.json["events"][0]
+
+    def test_the_same_id_on_a_different_sample_still_lands(self, server, user, samples):
+        first, second = samples[0], samples[1]
+        assertStatusOk(
+            add_event(server, user, first["_id"], "created", clientEventId="shared")
+        )
+        resp = add_event(server, user, second["_id"], "created", clientEventId="shared")
+
+        assertStatusOk(resp)
+        assert len(resp.json["events"]) == 1
+
+    def test_multisample_retry_is_recorded_once_per_sample(self, server, user, samples):
+        ids = [s["_id"] for s in samples]
+        first = self._post_multi(server, user, ids, "created", clientEventId="batch-1")
+        second = self._post_multi(server, user, ids, "created", clientEventId="batch-1")
+
+        assertStatusOk(first)
+        assertStatusOk(second)
+        assert first.json["processed"] == 3
+        assert second.json["processed"] == 3
+        for sample in samples:
+            events = SampleModel().load(sample["_id"], force=True)["events"]
+            assert len(events) == 1
+            assert events[0]["clientEventId"] == "batch-1"
+
+    def test_multisample_partial_retry_fills_the_gap(self, server, user, samples):
+        """A batch that half landed, then retried, ends up complete but not doubled."""
+        assertStatusOk(
+            self._post_multi(
+                server, user, [samples[0]["_id"]], "created", clientEventId="batch-2"
+            )
+        )
+        resp = self._post_multi(
+            server, user, [s["_id"] for s in samples], "created", clientEventId="batch-2"
+        )
+
+        assertStatusOk(resp)
+        for sample in samples:
+            assert len(SampleModel().load(sample["_id"], force=True)["events"]) == 1

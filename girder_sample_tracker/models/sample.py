@@ -13,6 +13,9 @@ class Sample(AccessControlledModel):
     def initialize(self):
         self.name = "sample"
         self.ensureIndices(["name"])
+        # Sparse, because only events written by a client that cares about
+        # retry safety carry a clientEventId.
+        self.ensureIndex(("events.clientEventId", {"sparse": True}))
 
         self.exposeFields(
             level=AccessType.READ,
@@ -56,6 +59,31 @@ class Sample(AccessControlledModel):
         return sample
 
     def add_event(self, sample, event, save=True):
+        """Prepend ``event`` to ``sample``'s event list.
+
+        An event carrying a ``clientEventId`` is written with a conditional
+        update, so a client that retries a request whose response it never saw
+        cannot end up with two copies of the same event. That path always
+        writes, regardless of ``save``. Events without a ``clientEventId``
+        keep the original unconditional behavior.
+        """
+        client_event_id = event.get("clientEventId")
+        if client_event_id is not None:
+            self.collection.update_one(
+                {
+                    "_id": sample["_id"],
+                    "events.clientEventId": {"$ne": client_event_id},
+                },
+                {
+                    "$push": {"events": {"$each": [event], "$position": 0}},
+                    "$set": {"updated": event["created"]},
+                },
+            )
+            # No match means an event with this clientEventId is already
+            # there, which is what a successful retry looks like. Either way
+            # the caller should see what is stored.
+            return self.load(sample["_id"], force=True, exc=True)
+
         sample["events"].insert(0, event)
         sample["updated"] = event["created"]
 

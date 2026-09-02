@@ -89,3 +89,12 @@ def add_event(server, user, sample_id, eventType, **kwargs):
     return server.request(
         path=f"/sample/{sample_id}/event", method="POST", user=user, params=params
     )
+
+
+def add_multisample_event(server, user, ids, eventType, **kwargs):
+    """POST /sample/event, returning the response."""
+    params = {"ids": json.dumps([str(i) for i in ids]), "eventType": eventType}
+    params.update(kwargs)
+    return server.request(
+        path="/sample/event", method="POST", user=user, params=params
+    )
