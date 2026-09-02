@@ -317,3 +317,118 @@ class TestClientEventId:
         assertStatusOk(resp)
         for sample in samples:
             assert len(SampleModel().load(sample["_id"], force=True)["events"]) == 1
+
+
+@pytest.mark.plugin("sample_tracker")
+class TestEventCoordinates:
+    """A phone can report where it was; ``location`` stays the human label."""
+
+    def test_coordinates_are_stored_as_numbers(self, server, user, sample):
+        resp = add_event(
+            server,
+            user,
+            sample["_id"],
+            "created",
+            location="Freezer 3",
+            latitude="40.1164",
+            longitude="-88.2434",
+            accuracy="12.5",
+        )
+
+        assertStatusOk(resp)
+        event = resp.json["events"][0]
+        assert event["latitude"] == pytest.approx(40.1164)
+        assert event["longitude"] == pytest.approx(-88.2434)
+        assert event["accuracy"] == pytest.approx(12.5)
+        assert event["location"] == "Freezer 3"
+
+        stored = SampleModel().load(sample["_id"], force=True)["events"][0]
+        assert isinstance(stored["latitude"], float)
+        assert isinstance(stored["longitude"], float)
+
+    def test_location_alone_is_still_accepted(self, server, user, sample):
+        resp = add_event(server, user, sample["_id"], "created", location="Bench 2")
+
+        assertStatusOk(resp)
+        event = resp.json["events"][0]
+        assert event["location"] == "Bench 2"
+        assert "latitude" not in event
+        assert "longitude" not in event
+        assert "accuracy" not in event
+
+    @pytest.mark.parametrize(
+        "params,message",
+        [
+            ({"latitude": "40.1"}, "together"),
+            ({"longitude": "-88.2"}, "together"),
+            ({"latitude": "90.1", "longitude": "0"}, "between -90 and 90"),
+            ({"latitude": "-90.1", "longitude": "0"}, "between -90 and 90"),
+            ({"latitude": "0", "longitude": "180.1"}, "between -180 and 180"),
+            ({"latitude": "0", "longitude": "-180.1"}, "between -180 and 180"),
+            (
+                {"latitude": "0", "longitude": "0", "accuracy": "-1"},
+                "must not be negative",
+            ),
+        ],
+    )
+    def test_bad_coordinates_are_rejected(self, server, user, sample, params, message):
+        resp = add_event(server, user, sample["_id"], "created", **params)
+
+        assertStatus(resp, 400)
+        assert message in resp.json["message"]
+        assert SampleModel().load(sample["_id"], force=True)["events"] == []
+
+    def test_non_numeric_coordinates_are_rejected(self, server, user, sample):
+        resp = add_event(
+            server, user, sample["_id"], "created", latitude="here", longitude="0"
+        )
+
+        assertStatus(resp, 400)
+
+    def test_the_range_extremes_are_allowed(self, server, user, sample):
+        resp = add_event(
+            server,
+            user,
+            sample["_id"],
+            "created",
+            latitude="-90",
+            longitude="180",
+            accuracy="0",
+        )
+
+        assertStatusOk(resp)
+
+    def test_accuracy_without_coordinates_is_allowed(self, server, user, sample):
+        """A device may know its precision without a fix worth recording."""
+        resp = add_event(server, user, sample["_id"], "created", accuracy="30")
+
+        assertStatusOk(resp)
+        assert resp.json["events"][0]["accuracy"] == pytest.approx(30.0)
+        assert "latitude" not in resp.json["events"][0]
+
+    def test_multisample_coordinates_apply_to_every_sample(self, server, user, samples):
+        resp = add_multisample_event(
+            server,
+            user,
+            [s["_id"] for s in samples],
+            "created",
+            latitude="40.1164",
+            longitude="-88.2434",
+        )
+
+        assertStatusOk(resp)
+        for sample in samples:
+            event = SampleModel().load(sample["_id"], force=True)["events"][0]
+            assert event["latitude"] == pytest.approx(40.1164)
+            assert event["longitude"] == pytest.approx(-88.2434)
+
+    def test_multisample_bad_coordinates_reject_the_whole_request(
+        self, server, user, samples
+    ):
+        resp = add_multisample_event(
+            server, user, [s["_id"] for s in samples], "created", latitude="40.1"
+        )
+
+        assertStatus(resp, 400)
+        for sample in samples:
+            assert SampleModel().load(sample["_id"], force=True)["events"] == []

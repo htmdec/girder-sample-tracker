@@ -29,7 +29,41 @@ CLIENT_EVENT_ID_DESC = (
 )
 
 
-def build_event(user, eventType, location, comment, clientEventId=None):
+def coordinates(latitude, longitude, accuracy):
+    """Validate a reading from a device's geolocation API.
+
+    Returns the fields to merge into an event, empty when nothing was sent.
+    """
+    if (latitude is None) != (longitude is None):
+        raise ValidationException(
+            "latitude and longitude must be provided together."
+        )
+    if latitude is not None and not -90 <= latitude <= 90:
+        raise ValidationException("latitude must be between -90 and 90.")
+    if longitude is not None and not -180 <= longitude <= 180:
+        raise ValidationException("longitude must be between -180 and 180.")
+    if accuracy is not None and accuracy < 0:
+        raise ValidationException("accuracy must not be negative.")
+
+    fields = {}
+    if latitude is not None:
+        fields["latitude"] = latitude
+        fields["longitude"] = longitude
+    if accuracy is not None:
+        fields["accuracy"] = accuracy
+    return fields
+
+
+def build_event(
+    user,
+    eventType,
+    location,
+    comment,
+    clientEventId=None,
+    latitude=None,
+    longitude=None,
+    accuracy=None,
+):
     """Assemble the event subdocument stored on a sample."""
     event = {
         "comment": comment,
@@ -43,6 +77,7 @@ def build_event(user, eventType, location, comment, clientEventId=None):
     # avoid claiming an idempotency key that was never supplied.
     if clientEventId:
         event["clientEventId"] = clientEventId
+    event.update(coordinates(latitude, longitude, accuracy))
     return event
 
 
@@ -314,16 +349,58 @@ class Sample(Resource):
             "ids", "The IDs of the samples to create an event for", requireArray=True
         )
         .param("eventType", "The type of the event", required=True)
-        .param("location", "The location of the event", required=False)
+        .param(
+            "location",
+            "A human-readable label for where the event happened, such as a "
+            "freezer or bench id. Use latitude/longitude for coordinates.",
+            required=False,
+        )
         .param("comment", "Extra comment about the event", required=False)
         .param("clientEventId", CLIENT_EVENT_ID_DESC, required=False, strip=True)
+        .param(
+            "latitude",
+            "Latitude of the event, in degrees",
+            required=False,
+            dataType="float",
+        )
+        .param(
+            "longitude",
+            "Longitude of the event, in degrees",
+            required=False,
+            dataType="float",
+        )
+        .param(
+            "accuracy",
+            "Radius of 95% confidence around the coordinates, in meters",
+            required=False,
+            dataType="float",
+        )
     )
-    def create_multisample_event(self, ids, eventType, location, comment, clientEventId):
+    def create_multisample_event(
+        self,
+        ids,
+        eventType,
+        location,
+        comment,
+        clientEventId,
+        latitude,
+        longitude,
+        accuracy,
+    ):
         user = self.getCurrentUser()
         if not ids:
             raise ValidationException("At least one sample ID must be provided.")
 
-        event = build_event(user, eventType, location, comment, clientEventId)
+        event = build_event(
+            user,
+            eventType,
+            location,
+            comment,
+            clientEventId,
+            latitude,
+            longitude,
+            accuracy,
+        )
 
         samples = []
         failed = 0
@@ -349,14 +426,56 @@ class Sample(Resource):
             "id", "The ID of the sample", model=SampleModel, level=AccessType.WRITE
         )
         .param("eventType", "The type of the event", required=True)
-        .param("location", "The location of the event", required=False)
+        .param(
+            "location",
+            "A human-readable label for where the event happened, such as a "
+            "freezer or bench id. Use latitude/longitude for coordinates.",
+            required=False,
+        )
         .param("comment", "Extra comment about the event", required=False)
         .param("clientEventId", CLIENT_EVENT_ID_DESC, required=False, strip=True)
+        .param(
+            "latitude",
+            "Latitude of the event, in degrees",
+            required=False,
+            dataType="float",
+        )
+        .param(
+            "longitude",
+            "Longitude of the event, in degrees",
+            required=False,
+            dataType="float",
+        )
+        .param(
+            "accuracy",
+            "Radius of 95% confidence around the coordinates, in meters",
+            required=False,
+            dataType="float",
+        )
     )
     @filtermodel(model="sample", plugin="sample_tracker")
-    def create_event(self, sample, eventType, location, comment, clientEventId):
+    def create_event(
+        self,
+        sample,
+        eventType,
+        location,
+        comment,
+        clientEventId,
+        latitude,
+        longitude,
+        accuracy,
+    ):
         user = self.getCurrentUser()
-        event = build_event(user, eventType, location, comment, clientEventId)
+        event = build_event(
+            user,
+            eventType,
+            location,
+            comment,
+            clientEventId,
+            latitude,
+            longitude,
+            accuracy,
+        )
         return SampleModel().add_event(sample, event)
 
     @access.user
