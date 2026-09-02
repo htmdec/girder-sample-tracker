@@ -25,7 +25,7 @@ from ..models.sample import Sample as SampleModel
 
 class Sample(Resource):
     def __init__(self):
-        super(Sample, self).__init__()
+        super().__init__()
         self.resourceName = "sample"
         self.route("GET", (), self.list_samples)
         self.route("DELETE", (), self.delete_samples)
@@ -96,7 +96,7 @@ class Sample(Resource):
             sample["name"] = name
         if description:
             sample["description"] = description
-        if eventTypes != sample.get("eventTypes", []):
+        if eventTypes is not None and eventTypes != sample.get("eventTypes", []):
             sample["eventTypes"] = eventTypes
         sample["updated"] = datetime.datetime.now(datetime.UTC)
         return SampleModel().save(sample)
@@ -203,16 +203,12 @@ class Sample(Resource):
             message="Calculating size...",
         ) as ctx:
             ctx.update(total=total)
-            current = 0
-            for sample_id in ids:
+            for current, sample_id in enumerate(ids, start=1):
                 doc = SampleModel().load(
                     sample_id, user=user, level=AccessType.ADMIN, exc=True
                 )
                 SampleModel().remove(doc, progress=ctx)
-                if progress:
-                    current += 1
-                    if ctx.progress["data"]["current"] != current:
-                        ctx.update(current=current, message="Deleted sample")
+                ctx.update(current=current, message="Deleted sample")
 
     @access.user
     @autoDescribeRoute(
@@ -280,6 +276,7 @@ class Sample(Resource):
     )
     def bulk_update_access(self, ids, access, publicFlags, public):
         user = self.getCurrentUser()
+        sample = None
         for sample_id in ids:
             doc = SampleModel().load(
                 sample_id, user=user, level=AccessType.ADMIN, exc=True
@@ -324,7 +321,7 @@ class Sample(Resource):
                         f"Event type '{eventType}' is not allowed for sample {sample_id}."
                     )
                 samples.append(SampleModel().add_event(sample, event))
-            except Exception:
+            except Exception:  # noqa: BLE001 - one bad sample must not abort the batch
                 failed += 1
         return {"processed": len(samples), "failed": failed}
 
@@ -423,7 +420,7 @@ class Sample(Resource):
                     ]
                 )
 
-                def qr_stream():
+                def qr_stream(qr_img=qr_img):
                     yield qr_img.getvalue()
 
                 yield from _zip.addFile(qr_stream, f"{doc['name']}.png")
