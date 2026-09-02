@@ -130,3 +130,9 @@ dmypy.json
 .pyre/
 
 node_modules/
+
+# Playwright (web client tests)
+/girder_sample_tracker/web_client/playwright-report/
+/girder_sample_tracker/web_client/test-results/
+/girder_sample_tracker/web_client/screenshots/
+/girder_sample_tracker/web_client/coverage/
