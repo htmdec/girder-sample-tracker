@@ -3,6 +3,7 @@ import _ from 'underscore';
 
 import SampleCollection from '../collections/SampleCollection';
 import SampleListTemplate from '../templates/sampleList.pug';
+import SampleListTableTemplate from '../templates/sampleListTable.pug';
 import CheckedMenuWidget from './CheckedMenuWidget';
 import AddEventDialog from './AddEventDialog';
 import AddSampleDialog from './AddSampleDialog';
@@ -49,15 +50,19 @@ var SampleListView = View.extend({
     },
 
     initialize: function (settings) {
-        this.ajaxLock = false;
         this.pending = null;
         this.parentView = settings.parentView;
         this.parentModel = settings.parentModel;
         this.checked = [];
+        // The ids behind this.checked, kept separately because a fetch resets
+        // the collection and every cid with it, and a filter or a page turn
+        // should not silently drop what the user had ticked.
+        this.checkedIds = [];
         this.collection = new SampleCollection();
-        this.collection.on('g:changed', function () {
-            this.render();
-        }, this).fetch({});
+        // Bound once. Re-registering this per search leaked a handler each
+        // time, so the Nth search re-rendered the whole list N times.
+        this.listenTo(this.collection, 'g:changed', this._renderData);
+        this.collection.fetch({});
         this.paginateWidget = new PaginateWidget({
             collection: this.collection,
             parentView: this
@@ -69,25 +74,50 @@ var SampleListView = View.extend({
             pickedDesc: '',
             parentView: this
         });
+        // The router navigates here without rendering, and the chrome no
+        // longer waits on a fetch to draw itself, so put it up now: the
+        // filter field is usable while the first page is still in flight.
+        this.render();
     },
 
     render: function () {
         this.$el.html(SampleListTemplate({
-            samples: this.collection.toArray(),
-            formatDate: formatDate,
-            DATE_DAY: DATE_DAY,
             user: getCurrentUser()
         }));
-        if (this.collection.isEmpty()) {
-            this.$('.g-main-content,.g-samples-pagination').hide();
-            this.$('.g-no-samples').show();
-        } else {
-            this.$('.g-main-content,.g-samples-pagination').show();
-            this.$('.g-no-samples').hide();
+        this._renderData();
+        return this;
+    },
+
+    /**
+     * Redraw only the part of the page that a fetch changes. The chrome above
+     * it -- in particular the filter field -- is left alone, so typing is not
+     * interrupted by its own results arriving.
+     */
+    _renderData: function () {
+        if (!this.$('.g-main-content').length) {
+            // Nothing to fill in yet; render() will call us once there is.
+            return this;
         }
+        this.$('.g-main-content').html(SampleListTableTemplate({
+            samples: this.collection.toArray(),
+            formatDate: formatDate,
+            DATE_DAY: DATE_DAY
+        }));
+
+        const empty = this.collection.isEmpty();
+        this.$('.g-main-content,.g-samples-pagination').toggle(!empty);
+        this.$('.g-no-samples-record').toggle(empty);
+
         this.paginateWidget.setElement(this.$('.g-samples-pagination')).render();
         this.checkedMenuWidget.dropdownToggle = this.$('.g-checked-actions-button');
         this.checkedMenuWidget.setElement(this.$('.g-checked-actions-menu')).render();
+
+        this._setCheckboxes(this.checkedIds);
+        this.$('.g-select-all').prop(
+            'checked',
+            !empty && this.$('.g-select-sample:not(:checked)').length === 0
+        );
+        this.updateChecked();
         return this;
     },
 
@@ -155,6 +185,7 @@ var SampleListView = View.extend({
         this.checked = _.map(this.$('.g-select-sample:checked'), function (checkbox) {
             return $(checkbox).attr('g-sample-cid');
         });
+        this.checkedIds = this._getCheckedSampleIds();
     },
 
     redirectViaForm: function (method, url, data) {
@@ -212,8 +243,10 @@ var SampleListView = View.extend({
         });
     },
 
+    // Brackets go too: what is left is handed to the server as a regex, and
+    // an unclosed character class is an error rather than a narrower search.
     _sanitizeRegex: function (q) {
-        return q.replaceAll(/[&/\\#,+()$~%.^'":*?<>{}]/g, '');
+        return q.replaceAll(/[&/\\#,+()$~%.^'":*?<>{}[\]]/g, '');
     },
 
     search: function () {
@@ -223,24 +256,14 @@ var SampleListView = View.extend({
         }
 
         this.pending = setTimeout(() => {
-            var q = this.$('.g-filter-field').val();
-            if (!q) {
-                this.collection.filterFunc = null;
-            } else {
-                let regex = this._sanitizeRegex(q);
-                this.collection.filterFunc = function (model) {
-                    var match = model.name.match(new RegExp(regex, 'i'));
-                    return match;
-                };
-            }
-            const oldChecked = this._getCheckedSampleIds();
-            this.collection.on('g:changed', function () {
-                this.render();
-                this._setCheckboxes(oldChecked);
-                this.updateChecked();
-                this.$('.g-filter-field').val(q);
-                this.$('.g-filter-field').focus();
-            }, this).fetch({}, true);
+            this.pending = null;
+            const q = this.$('.g-filter-field').val();
+            // The server matches the name, in one request. Filtering here
+            // instead meant walking the whole collection a page at a time --
+            // one request per page, however few samples actually matched --
+            // and it left the pager counting unfiltered pages.
+            this.collection.params = q ? {query: this._sanitizeRegex(q)} : {};
+            this.collection.fetch({}, true);
         }, 500);
         return this;
     }
