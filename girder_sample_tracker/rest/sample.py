@@ -2,6 +2,7 @@ import csv
 import datetime
 import io
 import math
+import re
 from urllib.parse import urlparse
 
 import cherrypy
@@ -143,10 +144,18 @@ class Sample(Resource):
         Description("List samples")
         .param("query", "A regular expression to filter sample names", required=False)
         .pagingParams(defaultSort="name", defaultSortDir=SortDir.DESCENDING)
+        .errorResponse("The query was not a valid regular expression.")
     )
     @filtermodel(model="sample", plugin="sample_tracker")
     def list_samples(self, query, limit, offset, sort):
         if query:
+            # The pattern comes straight from a search box, so a half-typed
+            # one is ordinary input. Compiling it here turns that into a 400
+            # rather than letting Mongo fail the whole request with a 500.
+            try:
+                re.compile(query)
+            except re.error as exc:
+                raise RestException(f"Invalid query regular expression: {exc}")
             query = {"name": {"$regex": query, "$options": "i"}}
         else:
             query = {}
