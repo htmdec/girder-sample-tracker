@@ -31,24 +31,10 @@
         input.g-filter-field.form-control.input-sm(
           type="text", placeholder="Search name via regex...", mode-select="off")
 
-  table.g-samples-widget
-    thead
-      tr
-        th(style="width: 30px;")
-        th Name
-        th Created
-        th Updated
-    tbody
-      each sample in samples
-        tr(g-sample-id=sample.id)
-          td
-            input.g-select-sample(type="checkbox", title="Select / Unselect this sample", g-sample-cid=sample.cid)
-          td
-            a.g-view-sample(cid=sample.cid)= sample.get("name")
-          td= formatDate(sample.get("created"), DATE_DAY)
-          td= formatDate(sample.get("updated"), DATE_DAY)
+  //- Only this part is re-rendered when a page of samples arrives, so that
+  //- refetching cannot take the filter field's value or its focus away.
+  .g-main-content
 
   .g-samples-pagination
 
-  if samples.length === 0
-    .g-no-samples-record No samples found
+  .g-no-samples-record No samples found

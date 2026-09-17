@@ -204,6 +204,25 @@ class TestListSamples:
         assertStatusOk(resp)
         assert {s["name"] for s in resp.json} == {"Alpha", "Beta"}
 
+    def test_list_query_reports_the_filtered_total(self, server, user, samples):
+        # The web client pages through the filtered set, so the count it
+        # reads has to be the count of matches, not of all samples.
+        resp = server.request(
+            path="/sample", user=user, params={"query": "a", "limit": 1}
+        )
+
+        assertStatusOk(resp)
+        assert resp.headers["Girder-Total-Count"] == 3
+
+    @pytest.mark.parametrize("query", ["[", "(", "*", "a[0-"])
+    def test_list_rejects_a_malformed_query(self, server, user, samples, query):
+        # Half-typed patterns arrive from a search box on every keystroke;
+        # they are bad input, not a server fault.
+        resp = server.request(path="/sample", user=user, params={"query": query})
+
+        assertStatus(resp, 400)
+        assert "Invalid query regular expression" in resp.json["message"]
+
     def test_list_paging(self, server, user, samples):
         resp = server.request(
             path="/sample",

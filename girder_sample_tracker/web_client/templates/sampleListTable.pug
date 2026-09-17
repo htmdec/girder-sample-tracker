@@ -1,0 +1,16 @@
+table.g-samples-widget
+  thead
+    tr
+      th(style="width: 30px;")
+      th Name
+      th Created
+      th Updated
+  tbody
+    each sample in samples
+      tr(g-sample-id=sample.id)
+        td
+          input.g-select-sample(type="checkbox", title="Select / Unselect this sample", g-sample-cid=sample.cid)
+        td
+          a.g-view-sample(cid=sample.cid)= sample.get("name")
+        td= formatDate(sample.get("created"), DATE_DAY)
+        td= formatDate(sample.get("updated"), DATE_DAY)

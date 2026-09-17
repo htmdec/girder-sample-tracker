@@ -74,6 +74,43 @@ test.describe('Sample list', () => {
     await expect(page.locator('.g-view-sample')).toHaveCount(3);
   });
 
+  test('filtering costs one request and leaves the field alone', async ({ page }) => {
+    await createUser(page);
+    await gotoSampleTracker(page);
+    await createSample(page, 'Alpha');
+    await createSample(page, 'Beta');
+    await expect(page.locator('.g-view-sample')).toHaveCount(2);
+
+    /* The server does the matching. Filtering in the browser meant fetching
+     * page after page until enough of them matched, so the request count is
+     * what keeps that from coming back. */
+    const listed: string[] = [];
+    page.on('request', (request) => {
+      const match = /\/api\/v1\/sample\?(.*)$/.exec(request.url());
+      if (match) {
+        listed.push(decodeURIComponent(match[1]));
+      }
+    });
+
+    await page.locator('.g-filter-field').fill('lph');
+    await expect(page.locator('.g-view-sample')).toHaveText(['Alpha']);
+
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toContain('query=lph');
+
+    /* Results arriving must not steal the value or the focus from someone
+     * still typing. */
+    await expect(page.locator('.g-filter-field')).toHaveValue('lph');
+    await expect(page.locator('.g-filter-field')).toBeFocused();
+
+    /* Page turns carry the filter rather than dropping back to everything. */
+    listed.length = 0;
+    await page.locator('.g-filter-field').fill('');
+    await expect(page.locator('.g-view-sample')).toHaveCount(2);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).not.toContain('query=');
+  });
+
   test('checking samples enables the batch actions menu', async ({ page }, testInfo) => {
     await createUser(page);
     await gotoSampleTracker(page);
