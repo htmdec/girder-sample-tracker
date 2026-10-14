@@ -625,9 +625,19 @@ class Sample(Resource):
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
         Description("Download QR codes for a list of samples")
+        .notes(
+            "The ids are a JSON array in the request body, because a "
+            "selection built up across several pages of the sample list is "
+            "longer than a query string is guaranteed to carry."
+            "\n\n"
+            "An 'ids' form or query parameter holding the same JSON is still "
+            "accepted, and still wins when both are sent, so callers written "
+            "against the older shape keep working."
+        )
         .jsonParam(
             "ids",
-            "The IDs of the samples to download",
+            "The IDs of the samples to download, as a JSON array",
+            paramType="body",
             requireArray=True,
         )
         .param(

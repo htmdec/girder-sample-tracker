@@ -27,15 +27,35 @@ def download(server, user, sample_id, referer=REFERER, isJson=False, **kwargs):
 
 
 def download_many(
-    server, user, ids, referer=REFERER, isJson=False, params_extra=None, **kwargs
+    server,
+    user,
+    ids,
+    referer=REFERER,
+    isJson=False,
+    params_extra=None,
+    as_form=False,
+    **kwargs,
 ):
-    params = {"ids": json.dumps([str(i) for i in ids])}
-    params.update(params_extra or {})
+    """POST /sample/download.
+
+    The ids travel as a JSON body, which is the shape the route describes.
+    ``as_form=True`` sends them as the form parameter it still accepts, which
+    is how every client written before the move looks.
+    """
+    params = dict(params_extra or {})
+    body = None
+    ids = json.dumps([str(i) for i in ids])
+    if as_form:
+        params["ids"] = ids
+    else:
+        body = ids
+        kwargs.setdefault("type", "application/json")
     return server.request(
         path="/sample/download",
         method="POST",
         user=user,
         params=params,
+        body=body,
         isJson=isJson,
         additionalHeaders=[("Referer", referer)] if referer else None,
         **kwargs,
@@ -214,6 +234,49 @@ class TestDownloadSamples:
             f"{sample['name']}.png",
             "samples.csv",
         ]
+
+    def test_ids_may_still_come_as_a_form_parameter(self, server, user, samples):
+        """Clients written before the ids moved into the body keep working."""
+        resp = download_many(server, user, [s["_id"] for s in samples], as_form=True)
+
+        assertStatusOk(resp)
+        assert sorted(self._zip(resp).namelist()) == [
+            "Alpha.png",
+            "Beta.png",
+            "Gamma.png",
+            "samples.csv",
+        ]
+
+    def test_a_body_of_ids_outgrows_what_a_query_string_would_carry(
+        self, server, user, samples
+    ):
+        """The point of the move: a selection spanning many pages of the list.
+
+        2000 ids is ~50 KB of JSON, well past where a query string stops being
+        something a proxy is obliged to pass along. Only the three real ones
+        come back, but the request itself has to survive being that long.
+        """
+        padding = ["0" * 24] * 2000
+        ids = [s["_id"] for s in samples] + padding
+
+        resp = download_many(server, user, ids, isJson=True)
+
+        # The padding is rejected on its own merits, not for being too long.
+        assertStatus(resp, 400)
+        assert "not found or access denied" in resp.json["message"]
+
+    def test_ids_are_required(self, server, user):
+        """An empty body is a missing parameter, not an empty selection."""
+        resp = server.request(
+            path="/sample/download",
+            method="POST",
+            user=user,
+            isJson=True,
+            additionalHeaders=[("Referer", REFERER)],
+        )
+
+        assertStatus(resp, 400)
+        assert "ids" in resp.json["message"]
 
     def test_bundle_of_nothing_is_just_the_csv(self, server, user):
         resp = download_many(server, user, [])

@@ -31,6 +31,15 @@
         input.g-filter-field.form-control.input-sm(
           type="text", placeholder="Search name via regex...", mode-select="off")
 
+    //- Rendered with the chrome rather than with the rows, so that changing
+    //- it is not undone by the page of samples it asks for. The options say
+    //- what the control is, which costs less of the bar than a label beside
+    //- it; the value stays the bare number.
+    .g-samples-page-size
+      select.g-page-size.form-control.input-sm(title="Samples shown per page")
+        each val in pageSizes
+          option(value=val, selected=val===pageSize) #{val} / page
+
   //- Only this part is re-rendered when a page of samples arrives, so that
   //- refetching cannot take the filter field's value or its focus away.
   .g-main-content
