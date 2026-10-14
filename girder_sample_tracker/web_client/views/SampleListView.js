@@ -1,7 +1,7 @@
 import $ from 'jquery';
 import _ from 'underscore';
 
-import SampleCollection from '../collections/SampleCollection';
+import SampleCollection, { PAGE_SIZES } from '../collections/SampleCollection';
 import SampleListTemplate from '../templates/sampleList.pug';
 import SampleListTableTemplate from '../templates/sampleListTable.pug';
 import CheckedMenuWidget from './CheckedMenuWidget';
@@ -19,7 +19,7 @@ const { AccessType } = girder.constants;
 const { confirm } = girder.dialog;
 const events = girder.events;
 const { formatDate, DATE_DAY } = girder.misc;
-const { restRequest, getApiRoot } = girder.rest;
+const { restRequest } = girder.rest;
 
 
 var SampleListView = View.extend({
@@ -37,15 +37,30 @@ var SampleListView = View.extend({
             router.navigate(`sample/${sampleId}`, {trigger: true});
         },
         'change .g-select-all': function (event) {
-            this.$('.g-select-sample').prop('checked', event.currentTarget.checked);
+            const checked = event.currentTarget.checked;
+            this.$('.g-select-sample').prop('checked', checked);
+            // This page only. The collection holds the page on screen, and a
+            // row the user cannot see is not one they just ticked.
+            this.collection.each((sample) => this._remember(sample, checked));
             this.updateChecked();
         },
-        'click .g-select-sample': function (event) {
+        'change .g-select-sample': function (event) {
+            const checkbox = $(event.currentTarget);
+            this._remember(
+                this.collection.get(checkbox.attr('g-sample-cid')),
+                checkbox.prop('checked')
+            );
+            this._syncSelectAll();
             this.updateChecked();
+        },
+        'change select.g-page-size': function (event) {
+            this.collection.setPageLimit(parseInt($(event.currentTarget).val(), 10));
+            this.collection.fetch({}, true);
         },
         'click a.g-delete-checked': 'deleteCheckedDialog',
         'click a.g-access-checked': 'accessCheckedDialog',
         'click a.g-download-checked': 'downloadChecked',
+        'click a.g-clear-checked': 'clearChecked',
         'input .g-filter-field': 'search'
     },
 
@@ -53,12 +68,18 @@ var SampleListView = View.extend({
         this.pending = null;
         this.parentView = settings.parentView;
         this.parentModel = settings.parentModel;
-        this.checked = [];
-        // The ids behind this.checked, kept separately because a fetch resets
-        // the collection and every cid with it, and a filter or a page turn
-        // should not silently drop what the user had ticked.
-        this.checkedIds = [];
+        // The selection, as sample id -> model. Held here rather than read
+        // back off the checkboxes, because a fetch replaces every row: a
+        // selection spanning more than one page -- which is the only way to
+        // pick more samples than fit on one -- has nothing in the DOM to be
+        // recovered from once the user turns the page. The models come along
+        // because the checked-actions menu needs their access level, and the
+        // collection only ever holds the page on screen.
+        this.checkedSamples = {};
+        this.downloading = false;
         this.collection = new SampleCollection();
+        // Before the first fetch, so the page opens at the size last chosen.
+        this.collection.updateFromSession();
         // Bound once. Re-registering this per search leaked a handler each
         // time, so the Nth search re-rendered the whole list N times.
         this.listenTo(this.collection, 'g:changed', this._renderData);
@@ -68,7 +89,7 @@ var SampleListView = View.extend({
             parentView: this
         });
         this.checkedMenuWidget = new CheckedMenuWidget({
-            pickedCount: this.checked.length,
+            pickedCount: 0,
             pickedCopyAllowed: false,
             pickedMoveAllowed: false,
             pickedDesc: '',
@@ -82,7 +103,9 @@ var SampleListView = View.extend({
 
     render: function () {
         this.$el.html(SampleListTemplate({
-            user: getCurrentUser()
+            user: getCurrentUser(),
+            pageSize: this.collection.pageLimit,
+            pageSizes: PAGE_SIZES
         }));
         this._renderData();
         return this;
@@ -112,54 +135,68 @@ var SampleListView = View.extend({
         this.checkedMenuWidget.dropdownToggle = this.$('.g-checked-actions-button');
         this.checkedMenuWidget.setElement(this.$('.g-checked-actions-menu')).render();
 
-        this._setCheckboxes(this.checkedIds);
-        this.$('.g-select-all').prop(
-            'checked',
-            !empty && this.$('.g-select-sample:not(:checked)').length === 0
-        );
+        this._restoreCheckboxes();
         this.updateChecked();
         return this;
     },
 
-    updateChecked: function (count = true) {
-        if (count) {
-            this.recomputeChecked();
-        }
-        var samples = this.checked;
+    updateChecked: function () {
+        var samples = _.values(this.checkedSamples);
 
         var minSampleLevel = AccessType.ADMIN;
-        _.every(samples, function (cid) {
-            var sample = this.collection.get(cid);
+        _.every(samples, function (sample) {
             minSampleLevel = Math.min(minSampleLevel, sample.getAccessLevel());
             return minSampleLevel > AccessType.READ;
-        }, this);
+        });
 
-        // let anyChecked = samples.length > 0;
         this.checkedMenuWidget.update({
             minSampleLevel: minSampleLevel,
             pickedCount: samples.length
         });
     },
 
-    _getCheckedSampleIds: function () {
-        return _.map(this.checked, function (cid) {
-            return this.collection.get(cid).id;
-        }, this);
-    },
-
-    _setCheckboxes: function (checked) {
-        _.each(this.$('.g-select-sample'), function (checkbox) {
-            var sampleId = this.collection.get($(checkbox).attr('g-sample-cid')).id;
-            if (checked.includes(sampleId)) {
-                $(checkbox).prop('checked', true);
-            }
+    /** Add or drop one sample from the selection. */
+    _remember: function (sample, checked) {
+        if (!sample) {
+            return;
         }
-            , this);
+        if (checked) {
+            this.checkedSamples[sample.id] = sample;
+        } else {
+            delete this.checkedSamples[sample.id];
+        }
     },
 
-    _clearChecked: function () {
-        this.checked = [];
-        this.updateChecked(false);
+    _getCheckedSampleIds: function () {
+        return _.keys(this.checkedSamples);
+    },
+
+    /** Tick the rows of this page that are part of the selection. */
+    _restoreCheckboxes: function () {
+        _.each(this.$('.g-select-sample'), function (checkbox) {
+            var sample = this.collection.get($(checkbox).attr('g-sample-cid'));
+            $(checkbox).prop('checked', !!sample && sample.id in this.checkedSamples);
+        }, this);
+        this._syncSelectAll();
+    },
+
+    /**
+     * The select-all box reflects this page, not the whole selection: it is
+     * the control for the rows under it, and ticking it with a hundred
+     * samples already picked elsewhere should not look like it undid them.
+     */
+    _syncSelectAll: function () {
+        this.$('.g-select-all').prop(
+            'checked',
+            !this.collection.isEmpty() &&
+                this.$('.g-select-sample:not(:checked)').length === 0
+        );
+    },
+
+    clearChecked: function () {
+        this.checkedSamples = {};
+        this.$('.g-select-sample,.g-select-all').prop('checked', false);
+        this.updateChecked();
     },
 
     deleteCheckedDialog: function () {
@@ -174,6 +211,7 @@ var SampleListView = View.extend({
                     data: {ids: JSON.stringify(this._getCheckedSampleIds())},
                     headers: {'X-HTTP-Method-Override': 'DELETE'}
                 }).done(() => {
+                    this.clearChecked();
                     this.collection.fetch({}, true);
                 });
             }
@@ -181,24 +219,9 @@ var SampleListView = View.extend({
         confirm(params);
     },
 
-    recomputeChecked: function () {
-        this.checked = _.map(this.$('.g-select-sample:checked'), function (checkbox) {
-            return $(checkbox).attr('g-sample-cid');
-        });
-        this.checkedIds = this._getCheckedSampleIds();
-    },
-
-    redirectViaForm: function (method, url, data) {
-        var form = $('<form>').attr({action: url, method: method});
-        _.each(data, function (value, key) {
-            form.append($('<input/>').attr({type: 'text', name: key, value: value}));
-        });
-        $(form).appendTo('body').submit().remove();
-    },
-
     accessCheckedDialog: function () {
         var samples = this._getCheckedSampleIds();
-        var sample = this.collection.get(samples[0]);
+        var sample = this.checkedSamples[samples[0]];
         new AccessBatchDialog({
             el: $('#g-dialog-container'),
             model: sample,
@@ -237,10 +260,84 @@ var SampleListView = View.extend({
     },
 
     downloadChecked: function () {
-        var url = getApiRoot() + '/sample/download';
-        this.redirectViaForm('POST', url, {
-            ids: JSON.stringify(this._getCheckedSampleIds())
+        const ids = this._getCheckedSampleIds();
+        // One QR code is ~36ms of rendering on the server, so a selection of
+        // a few hundred is tens of seconds during which the menu is still
+        // there to be clicked again.
+        if (this.downloading || !ids.length) {
+            return;
+        }
+        this.downloading = true;
+        events.trigger('g:alert', {
+            icon: 'download',
+            text: `Preparing QR codes for ${ids.length} sample(s)...`,
+            type: 'info',
+            timeout: 4000
         });
+
+        restRequest({
+            url: 'sample/download',
+            method: 'POST',
+            // The ids are the request body, not a query parameter: a
+            // selection gathered across several pages outgrows what a query
+            // string can be relied on to carry.
+            contentType: 'application/json',
+            processData: false,
+            data: JSON.stringify(ids),
+            // Without this the transport hands back a string and the zip is
+            // mangled on the way through.
+            xhrFields: {responseType: 'blob'},
+            // Handled below, where the message can be read out of the blob.
+            error: null
+        }).done((blob) => {
+            this._saveBlob(blob, 'samples.zip');
+        }).fail((xhr) => {
+            this._downloadFailed(xhr);
+        }).always(() => {
+            this.downloading = false;
+        });
+    },
+
+    /** Hand a blob to the browser as a file to save. */
+    _saveBlob: function (blob, filename) {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        // Not before the click has been dispatched, or the browser is handed
+        // a url that no longer resolves to anything.
+        window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+    },
+
+    _downloadFailed: function (xhr) {
+        const alert = (text) => events.trigger('g:alert', {
+            icon: 'cancel',
+            text: text || 'Could not download the QR codes.',
+            type: 'danger',
+            timeout: 5000
+        });
+        // The response is a blob, because that is what the transport was
+        // asked for, so the server's explanation of a 400 has to be read back
+        // out of it rather than picked off responseJSON.
+        if (xhr.response instanceof Blob) {
+            xhr.response.text().then(
+                (body) => {
+                    let message = null;
+                    try {
+                        message = JSON.parse(body).message;
+                    } catch (e) {
+                        message = null;
+                    }
+                    alert(message);
+                },
+                () => alert(null)
+            );
+        } else {
+            alert(null);
+        }
     },
 
     // Brackets go too: what is left is handed to the server as a regex, and

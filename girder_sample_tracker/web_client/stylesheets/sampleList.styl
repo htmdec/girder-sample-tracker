@@ -26,6 +26,18 @@
     margin-left 0
     border-left none
 
+// Not .g-page-size-container: girder-jsonforms styles that name for its own
+// deposition list, and every plugin's stylesheet is loaded on every page, so
+// its `margin-top 7px` landed here and pushed the control out of line with
+// the filter field beside it.
+.g-samples-page-size
+  float right
+
+  select.g-page-size
+    display inline-block
+    width auto
+    color #333
+
 .g-samples-list-table
 
   .g-samples-list-actions
@@ -33,6 +45,15 @@
     padding 4px 5px 3px
     background-color #f6f6f6
     border-top 1px solid #ddd
+    // The page-size control floats right in this bar, so the bar has to be
+    // told to contain it. A clearfix, not overflow, because the checked-
+    // actions dropdown hangs out of this bar and `overflow hidden` clips it
+    // to the bar's height -- leaving a menu with nothing in it but its
+    // header.
+    &:after
+      content ''
+      display table
+      clear both
 
     .g-select-all
       font-size 16px

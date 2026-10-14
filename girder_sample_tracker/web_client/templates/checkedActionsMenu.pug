@@ -1,7 +1,11 @@
 li.g-checked-menu-header.dropdown-header(role="presentation")
   if pickedCount
     i.icon-plus-circled
+    //- The count can exceed the rows on screen: a selection survives a page
+    //- turn and a change of filter, so say what it is rather than leaving
+    //- the user to count checkboxes.
     span.g-checked-picked-count #{pickedCount}
+    |  selected
 if pickedCount
   li
     a.g-download-checked
@@ -21,3 +25,9 @@ if pickedCount
       a.g-delete-checked
         i.icon-trash
         | Delete checked samples
+
+  li.divider
+  li
+    a.g-clear-checked
+      i.icon-cancel
+      | Clear selection
